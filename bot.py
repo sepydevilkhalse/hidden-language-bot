@@ -248,10 +248,10 @@ def handler(message):
         result = encode(text)
 
     bot.reply_to(
-        message,
-        result,
-        disable_web_page_preview=True
-    )
+    message,
+    f"<code>{result}</code>",
+    parse_mode="HTML"
+)
 
 
 print("Bot started...")
