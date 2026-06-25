@@ -55,7 +55,6 @@ numbers = {
 
 persian_digits = str.maketrans("۰۱۲۳۴۵۶۷۸۹", "0123456789")
 
-# تشخیص ایموجی و علامت‌ها
 SPECIAL_PATTERN = re.compile(
     r'[\U0001F600-\U0001F64F]|'
     r'[\U0001F300-\U0001F5FF]|'
@@ -69,7 +68,7 @@ SPECIAL_PATTERN = re.compile(
     r'[\U00002702-\U000027B0]|'
     r'[\U000024C2-\U0001F251]|'
     r'[\u2600-\u27BF]|'
-    r'[!؟.،,;:؟؟٬٪×÷+-=@#$%^&*()_\[\]{}<>~`\'"\\/|]'  # <-- علامت‌ها
+    r'[!؟.،,;:؟؟٬٪×÷+-=@#$%^&*()_\[\]{}<>~`\'"\\/|]'
 )
 
 
@@ -142,13 +141,11 @@ def validate(text):
 
 
 def split_by_space_and_special(text):
-    """تقسیم متن به بخش‌های کلمه، فاصله، ایموجی و علامت"""
     parts = []
     i = 0
     current_word = ""
     
     while i < len(text):
-        # چک کردن فاصله
         if text[i].isspace():
             if current_word:
                 parts.append(("word", current_word))
@@ -160,7 +157,6 @@ def split_by_space_and_special(text):
             parts.append(("space", space))
             continue
         
-        # چک کردن ایموجی یا علامت
         special_match = SPECIAL_PATTERN.match(text[i:])
         if special_match:
             if current_word:
@@ -170,7 +166,6 @@ def split_by_space_and_special(text):
             i += len(special_match.group())
             continue
         
-        # کاراکتر معمولی
         current_word += text[i]
         i += 1
     
@@ -197,7 +192,7 @@ def encode(text):
                 result_parts.append("•")
             elif part_type == "special":
                 result_parts.append(part_text)
-            else:  # word
+            else:
                 nums = []
                 for ch in part_text:
                     if ch in letters:
@@ -290,6 +285,7 @@ def handler(message):
     else:
         result = encode(text)
 
+    # ارسال با <code> برای کپی (علامت‌ها داخل <code> قرار میگیرن)
     bot.reply_to(
         message,
         f"<code>{result}</code>",
