@@ -55,8 +55,8 @@ numbers = {
 
 persian_digits = str.maketrans("۰۱۲۳۴۵۶۷۸۹", "0123456789")
 
-# تشخیص ایموجی
-EMOJI_PATTERN = re.compile(
+# تشخیص ایموجی و علامت‌ها
+SPECIAL_PATTERN = re.compile(
     r'[\U0001F600-\U0001F64F]|'
     r'[\U0001F300-\U0001F5FF]|'
     r'[\U0001F680-\U0001F6FF]|'
@@ -68,7 +68,8 @@ EMOJI_PATTERN = re.compile(
     r'[\U0001FA70-\U0001FAFF]|'
     r'[\U00002702-\U000027B0]|'
     r'[\U000024C2-\U0001F251]|'
-    r'[\u2600-\u27BF]'
+    r'[\u2600-\u27BF]|'
+    r'[!؟.،,;:؟؟٬٪×÷+-=@#$%^&*()_\[\]{}<>~`\'"\\/|]'  # <-- علامت‌ها
 )
 
 
@@ -140,8 +141,8 @@ def validate(text):
     return True
 
 
-def split_by_space_and_emoji(text):
-    """تقسیم متن به بخش‌های کلمه، فاصله و ایموجی"""
+def split_by_space_and_special(text):
+    """تقسیم متن به بخش‌های کلمه، فاصله، ایموجی و علامت"""
     parts = []
     i = 0
     current_word = ""
@@ -152,7 +153,6 @@ def split_by_space_and_emoji(text):
             if current_word:
                 parts.append(("word", current_word))
                 current_word = ""
-            # جمع کردن فاصله‌ها
             space = ""
             while i < len(text) and text[i].isspace():
                 space += text[i]
@@ -160,14 +160,14 @@ def split_by_space_and_emoji(text):
             parts.append(("space", space))
             continue
         
-        # چک کردن ایموجی
-        emoji_match = EMOJI_PATTERN.match(text[i:])
-        if emoji_match:
+        # چک کردن ایموجی یا علامت
+        special_match = SPECIAL_PATTERN.match(text[i:])
+        if special_match:
             if current_word:
                 parts.append(("word", current_word))
                 current_word = ""
-            parts.append(("emoji", emoji_match.group()))
-            i += len(emoji_match.group())
+            parts.append(("special", special_match.group()))
+            i += len(special_match.group())
             continue
         
         # کاراکتر معمولی
@@ -189,13 +189,13 @@ def encode(text):
             final_lines.append("")
             continue
 
-        parts = split_by_space_and_emoji(line)
+        parts = split_by_space_and_special(line)
         result_parts = []
 
         for part_type, part_text in parts:
             if part_type == "space":
                 result_parts.append("•")
-            elif part_type == "emoji":
+            elif part_type == "special":
                 result_parts.append(part_text)
             else:  # word
                 nums = []
@@ -222,7 +222,6 @@ def decode(text):
             final_lines.append("")
             continue
 
-        # split by •
         parts = line.split("•")
         result_words = []
 
@@ -230,16 +229,15 @@ def decode(text):
             if not part:
                 continue
 
-            # جدا کردن ایموجی از کد
             match = re.match(r'^([\d_]+)(.*)$', part)
             if match:
                 code = match.group(1)
-                emoji = match.group(2)
+                special = match.group(2)
                 result = ""
                 for c in code.split("_"):
                     if c in numbers:
                         result += numbers[c]
-                result += emoji
+                result += special
                 result_words.append(result)
             else:
                 result_words.append(part)
