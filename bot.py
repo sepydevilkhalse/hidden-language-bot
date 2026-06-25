@@ -125,81 +125,84 @@ def validate(text):
 
 
 def encode(text):
-
     lines = text.split("\n")
-    final = []
+    final_lines = []
 
     for line in lines:
+        if not line.strip():
+            final_lines.append("")
+            continue
 
-        words = line.split()
-        out_words = []
+        # هر خط رو به کلمات تقسیم کن (با فاصله)
+        words = re.split(r'(\s+)', line)
+        result_parts = []
 
         for word in words:
+            if not word:
+                continue
 
+            # اگه فاصله بود => •
+            if word.isspace():
+                result_parts.append("•")
+                continue
+
+            # کد کردن کلمه (با حفظ ایموجی)
             nums = []
             emoji = ""
-
             for ch in word:
-
                 if ch in letters:
                     nums.append(letters[ch])
-
                 elif ch.isdigit():
                     nums.append(ch)
-
                 else:
                     emoji += ch
 
-            result = "_".join(nums)
+            if nums:
+                result_parts.append("_".join(nums))
+            if emoji:
+                result_parts.append(emoji)
 
-            if result and emoji:
-                result += emoji
-            elif emoji:
-                result = emoji
+        final_lines.append("".join(result_parts))
 
-            out_words.append(result)
-
-        final.append("•".join(out_words))  # <-- تغییر اینجا
-
-    return "\n".join(final)
+    return "\n".join(final_lines)
 
 
 def decode(text):
-
     text = text.translate(persian_digits)
-
     lines = text.split("\n")
-    final = []
+    final_lines = []
 
     for line in lines:
+        if not line.strip():
+            final_lines.append("")
+            continue
 
-        words = line.split("•")  # <-- تغییر اینجا
-        out_words = []
+        # جایگزین • با فاصله برای جداسازی
+        parts = line.split("•")
+        result_words = []
 
-        for word in words:
+        for part in parts:
+            if not part:
+                continue
 
-            match = re.match(r'^([\d_]+)(.*)$', word)
-
+            # جدا کردن ایموجی از کد
+            match = re.match(r'^([\d_]+)(.*)$', part)
             if match:
                 code = match.group(1)
                 emoji = match.group(2)
+                result = ""
+                for c in code.split("_"):
+                    if c in numbers:
+                        result += numbers[c]
+                result += emoji
+                result_words.append(result)
             else:
-                code = ""
-                emoji = word
+                # فقط ایموجی یا کاراکتر خاص
+                result_words.append(part)
 
-            result = ""
+        final_lines.append(" ".join(result_words))
 
-            for c in code.split("_"):
-
-                if c in numbers:
-                    result += numbers[c]
-
-            result += emoji
-            out_words.append(result)
-
-        final.append(" ".join(out_words))
-
-    return "\n".join(final)
+    return "\n".join(final_lines)
 
 
 @bot.message_handler(func=lambda m: True)
