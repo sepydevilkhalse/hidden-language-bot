@@ -7,7 +7,7 @@ bot = telebot.TeleBot(TOKEN)
 
 letters = {
     'ا':'1',
-    'آ':'1',  # <-- آ هم میشه ۱
+    'آ':'1',
     'ب':'2','پ':'3','ت':'4','ث':'5',
     'ج':'6','چ':'7','ح':'8','خ':'9',
     'د':'10','ذ':'11','ر':'12','ز':'13',
@@ -18,9 +18,8 @@ letters = {
     'و':'30','ه':'31','ی':'32'
 }
 
-# دیکشنری numbers رو دستی مینویسم (با 'ا')
 numbers = {
-    '1': 'ا',  # <-- اینجا 'ا' هست نه 'آ'
+    '1': 'ا',
     '2': 'ب',
     '3': 'پ',
     '4': 'ت',
@@ -70,9 +69,9 @@ def start(message):
 ✨ مثال:
 
 سلام خوبی
-➜ 15_27_1_28__9_30_2_32
+➜ 15_27_1_28•9_30_2_32
 
-15_27_1_28__9_30_2_32
+15_27_1_28•9_30_2_32
 ➜ سلام خوبی
 
 سلام😁
@@ -116,7 +115,6 @@ def start(message):
 
 def validate(text):
     text = text.translate(persian_digits)
-
     nums = re.findall(r'\d+', text)
 
     for n in nums:
@@ -161,7 +159,7 @@ def encode(text):
 
             out_words.append(result)
 
-        final.append("__".join(out_words))
+        final.append("•".join(out_words))  # <-- تغییر اینجا
 
     return "\n".join(final)
 
@@ -175,7 +173,7 @@ def decode(text):
 
     for line in lines:
 
-        words = line.split("__")
+        words = line.split("•")  # <-- تغییر اینجا
         out_words = []
 
         for word in words:
@@ -248,10 +246,10 @@ def handler(message):
         result = encode(text)
 
     bot.reply_to(
-    message,
-    f"<code>{result}</code>",
-    parse_mode="HTML"
-)
+        message,
+        f"<code>{result}</code>",
+        parse_mode="HTML"
+    )
 
 
 print("Bot started...")
