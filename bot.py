@@ -146,15 +146,24 @@ def split_by_space_and_special(text):
     current_word = ""
     
     while i < len(text):
+        if text[i] == '\n':
+            if current_word:
+                parts.append(("word", current_word))
+                current_word = ""
+            parts.append(("newline", "\n"))
+            i += 1
+            continue
+        
         if text[i].isspace():
             if current_word:
                 parts.append(("word", current_word))
                 current_word = ""
             space = ""
-            while i < len(text) and text[i].isspace():
+            while i < len(text) and text[i].isspace() and text[i] != '\n':
                 space += text[i]
                 i += 1
-            parts.append(("space", space))
+            if space:
+                parts.append(("space", space))
             continue
         
         special_match = SPECIAL_PATTERN.match(text[i:])
@@ -192,7 +201,7 @@ def encode(text):
                 result_parts.append("•")
             elif part_type == "special":
                 result_parts.append(part_text)
-            else:
+            else:  # word
                 nums = []
                 for ch in part_text:
                     if ch in letters:
@@ -285,10 +294,10 @@ def handler(message):
     else:
         result = encode(text)
 
-    # ارسال با <code> برای کپی (علامت‌ها داخل <code> قرار میگیرن)
+    # استفاده از <pre> برای چپ‌چین کردن اعداد
     bot.reply_to(
         message,
-        f"<code>{result}</code>",
+        f"<pre>{result}</pre>",
         parse_mode="HTML"
     )
 
