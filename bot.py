@@ -133,23 +133,23 @@ def encode(text):
             final_lines.append("")
             continue
 
-        # هر خط رو به کلمات تقسیم کن (با فاصله)
+        # تقسیم بر اساس فاصله‌ها
         words = re.split(r'(\s+)', line)
         result_parts = []
 
-        for word in words:
-            if not word:
+        for part in words:
+            if not part:
                 continue
 
             # اگه فاصله بود => •
-            if word.isspace():
+            if part.isspace():
                 result_parts.append("•")
                 continue
 
-            # کد کردن کلمه (با حفظ ایموجی)
+            # کد کردن بخش (کلمه + احتمالاً ایموجی)
             nums = []
             emoji = ""
-            for ch in word:
+            for ch in part:
                 if ch in letters:
                     nums.append(letters[ch])
                 elif ch.isdigit():
@@ -177,7 +177,7 @@ def decode(text):
             final_lines.append("")
             continue
 
-        # جایگزین • با فاصله برای جداسازی
+        # split by •
         parts = line.split("•")
         result_words = []
 
@@ -197,7 +197,6 @@ def decode(text):
                 result += emoji
                 result_words.append(result)
             else:
-                # فقط ایموجی یا کاراکتر خاص
                 result_words.append(part)
 
         final_lines.append(" ".join(result_words))
