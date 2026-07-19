@@ -263,7 +263,7 @@ def about_button(message):
 ✅ تشخیص خودکار
 ✅ پشتیبانی از اعداد (d1, d2, ...)
 ✅ تاریخچه و آمار"""
-    bot.reply_to(message, about_text, parse_mode="Markdown")
+    bot.reply_to(message, about_text, parse_mode="Markdown"
 )
 def stats_button(message):
     user_id = message.from_user.id
