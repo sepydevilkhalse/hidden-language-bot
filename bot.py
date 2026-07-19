@@ -91,9 +91,11 @@ def get_history(user_id, limit=5):
 def validate(text):
     text = text.translate(persian_to_english)
     nums = re.findall(r'\d+', text)
+
     for n in nums:
         if int(n) > 32:
             return False
+
     return True
 
 def split_by_space_and_special(text):
@@ -235,22 +237,34 @@ def start(message):
 
 📩 فقط پیام خودتو بفرست..."""
     bot.reply_to(message, text, parse_mode="Markdown", reply_markup=main_keyboard())
+@bot.message_handler(commands=['about'])
+def about_command(message):
+    about_button(message)
+
+
+@bot.message_handler(commands=['stats'])
+def stats_command(message):
+    stats_button(message)
+
+
+@bot.message_handler(commands=['history'])
+def history_command(message):
+    history_button(message)
+
 
 # ==================== هندلر دکمه‌ها ====================
-@bot.message_handler(func=lambda m: m.text == "ℹ️ درباره")
 def about_button(message):
     about_text = """ℹ️ **درباره ربات**
 
-🤖 نسخه: 2.1
-📅 2025
+🤖 نسخه: 3.34
+📅 1404/11/25
 
 ✅ تبدیل فارسی ↔ کد مخفی
 ✅ تشخیص خودکار
 ✅ پشتیبانی از اعداد (d1, d2, ...)
 ✅ تاریخچه و آمار"""
-    bot.reply_to(message, about_text, parse_mode="Markdown", reply_markup=main_keyboard())
-
-@bot.message_handler(func=lambda m: m.text == "📊 آمار من")
+    bot.reply_to(message, about_text, parse_mode="Markdown")
+)
 def stats_button(message):
     user_id = message.from_user.id
     stats = get_user_stats(user_id)
@@ -259,9 +273,8 @@ def stats_button(message):
         stats_text = f"📊 **آمار شما**\n\n📝 تعداد تبدیل‌ها: {total}\n📆 عضویت: {first[:10]}"
     else:
         stats_text = "📊 هنوز تبدیلی انجام ندادید!"
-    bot.reply_to(message, stats_text, parse_mode="Markdown", reply_markup=main_keyboard())
-
-@bot.message_handler(func=lambda m: m.text == "📜 تاریخچه")
+    bot.reply_to(message, stats_text, parse_mode="Markdown")
+)
 def history_button(message):
     user_id = message.from_user.id
     history = get_history(user_id, 5)
@@ -272,7 +285,7 @@ def history_button(message):
             history_text += f"   📅 {ts[:16]}\n\n"
     else:
         history_text = "📜 هنوز تبدیلی انجام ندادید!"
-    bot.reply_to(message, history_text, parse_mode="Markdown", reply_markup=main_keyboard())
+    bot.reply_to(message, history_text, parse_mode="Markdown")
 
 # ==================== هندلر اصلی ====================
 @bot.message_handler(func=lambda m: True)
@@ -306,12 +319,11 @@ def handler(message):
         result = decode(text)
         conv_type = "decode"
     update_conversion(user.id, text, result, conv_type)
-    bot.reply_to(message, f"<code>{result}</code>", parse_mode="HTML", reply_markup=main_keyboard())
+    bot.reply_to(message, f"<code>{result}</code>", parse_mode="HTML")
 
 print("🤖 ربات روشن شد...")
 bot.set_my_commands([
     BotCommand("start", "شروع ربات"),
-    BotCommand("help", "راهنما"),
     BotCommand("about", "درباره ربات"),
     BotCommand("stats", "آمار من"),
     BotCommand("history", "تاریخچه"),
