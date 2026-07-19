@@ -2,6 +2,7 @@ import telebot
 import re
 import sqlite3
 from datetime import datetime
+
 from telebot.types import (
     ReplyKeyboardMarkup,
     KeyboardButton,
@@ -189,29 +190,6 @@ def decode(text):
     return "\n".join(final_lines)
 
 # ==================== منوی پایین صفحه ====================
-def main_keyboard():
-    keyboard = ReplyKeyboardMarkup(resize_keyboard=True)
-
-    keyboard.add(
-        KeyboardButton(
-            text="🌐 Hidden Language",
-            web_app=WebAppInfo(
-                "https://sepydevilkhalse.github.io/hidden-language-webapp/"
-            )
-        )
-    )
-
-    keyboard.row(
-        KeyboardButton("📊 آمار من"),
-        KeyboardButton("📜 تاریخچه")
-    )
-
-    keyboard.row(
-        KeyboardButton("ℹ️ درباره")
-    )
-
-    return keyboard
-
 @bot.message_handler(commands=['start'])
 def start(message):
     user = message.from_user
@@ -274,7 +252,7 @@ def stats_button(message):
     else:
         stats_text = "📊 هنوز تبدیلی انجام ندادید!"
     bot.reply_to(message, stats_text, parse_mode="Markdown")
-)
+
 def history_button(message):
     user_id = message.from_user.id
     history = get_history(user_id, 5)
