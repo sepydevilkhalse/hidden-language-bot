@@ -2,7 +2,7 @@ import telebot
 import re
 import sqlite3
 from datetime import datetime
-from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
+from telebot.types import ReplyKeyboardMarkup, KeyboardButton
 
 TOKEN = "8943897493:AAEBKncLQgRKNZ0Gidw2WDtwYmQO_2_8GL4"
 bot = telebot.TeleBot(TOKEN)
@@ -181,14 +181,15 @@ def decode(text):
         final_lines.append(" ".join(result_words))
     return "\n".join(final_lines)
 
-def main_menu():
-    keyboard = InlineKeyboardMarkup(row_width=2)
+# ==================== منوی پایین صفحه ====================
+def main_keyboard():
+    keyboard = ReplyKeyboardMarkup(row_width=2, resize_keyboard=True)
     keyboard.add(
-        InlineKeyboardButton("ℹ️ درباره", callback_data="about"),
-        InlineKeyboardButton("📊 آمار من", callback_data="stats")
+        KeyboardButton("ℹ️ درباره"),
+        KeyboardButton("📊 آمار من")
     )
     keyboard.add(
-        InlineKeyboardButton("📜 تاریخچه", callback_data="history")
+        KeyboardButton("📜 تاریخچه")
     )
     return keyboard
 
@@ -216,13 +217,12 @@ def start(message):
 📊 آمار شخصی
 
 📩 فقط پیام خودتو بفرست..."""
-    bot.reply_to(message, text, parse_mode="Markdown", reply_markup=main_menu())
+    bot.reply_to(message, text, parse_mode="Markdown", reply_markup=main_keyboard())
 
-@bot.callback_query_handler(func=lambda call: True)
-def callback_handler(call):
-    user_id = call.from_user.id
-    if call.data == "about":
-        about_text = """ℹ️ **درباره ربات**
+# ==================== هندلر دکمه‌ها ====================
+@bot.message_handler(func=lambda m: m.text == "ℹ️ درباره")
+def about_button(message):
+    about_text = """ℹ️ **درباره ربات**
 
 🤖 نسخه: 2.1
 📅 2025
@@ -231,35 +231,41 @@ def callback_handler(call):
 ✅ تشخیص خودکار
 ✅ پشتیبانی از اعداد (d1, d2, ...)
 ✅ تاریخچه و آمار"""
-        bot.edit_message_text(about_text, call.message.chat.id, call.message.message_id, parse_mode="Markdown", reply_markup=main_menu())
-        bot.answer_callback_query(call.id)
-    elif call.data == "stats":
-        stats = get_user_stats(user_id)
-        if stats:
-            total, first = stats
-            stats_text = f"📊 **آمار شما**\n\n📝 تعداد تبدیل‌ها: {total}\n📆 عضویت: {first[:10]}"
-        else:
-            stats_text = "📊 هنوز تبدیلی انجام ندادید!"
-        bot.edit_message_text(stats_text, call.message.chat.id, call.message.message_id, parse_mode="Markdown", reply_markup=main_menu())
-        bot.answer_callback_query(call.id)
-    elif call.data == "history":
-        history = get_history(user_id, 5)
-        if history:
-            history_text = "📜 **۵ تبدیل اخیر:**\n\n"
-            for i, (inp, out, ts) in enumerate(history, 1):
-                history_text += f"{i}. `{inp[:30]}` ➜ `{out[:30]}`\n"
-                history_text += f"   📅 {ts[:16]}\n\n"
-        else:
-            history_text = "📜 هنوز تبدیلی انجام ندادید!"
-        bot.edit_message_text(history_text, call.message.chat.id, call.message.message_id, parse_mode="Markdown", reply_markup=main_menu())
-        bot.answer_callback_query(call.id)
+    bot.reply_to(message, about_text, parse_mode="Markdown", reply_markup=main_keyboard())
 
+@bot.message_handler(func=lambda m: m.text == "📊 آمار من")
+def stats_button(message):
+    user_id = message.from_user.id
+    stats = get_user_stats(user_id)
+    if stats:
+        total, first = stats
+        stats_text = f"📊 **آمار شما**\n\n📝 تعداد تبدیل‌ها: {total}\n📆 عضویت: {first[:10]}"
+    else:
+        stats_text = "📊 هنوز تبدیلی انجام ندادید!"
+    bot.reply_to(message, stats_text, parse_mode="Markdown", reply_markup=main_keyboard())
+
+@bot.message_handler(func=lambda m: m.text == "📜 تاریخچه")
+def history_button(message):
+    user_id = message.from_user.id
+    history = get_history(user_id, 5)
+    if history:
+        history_text = "📜 **۵ تبدیل اخیر:**\n\n"
+        for i, (inp, out, ts) in enumerate(history, 1):
+            history_text += f"{i}. `{inp[:30]}` ➜ `{out[:30]}`\n"
+            history_text += f"   📅 {ts[:16]}\n\n"
+    else:
+        history_text = "📜 هنوز تبدیلی انجام ندادید!"
+    bot.reply_to(message, history_text, parse_mode="Markdown", reply_markup=main_keyboard())
+
+# ==================== هندلر اصلی ====================
 @bot.message_handler(func=lambda m: True)
 def handler(message):
     user = message.from_user
     add_user(user.id, user.first_name, user.last_name, user.username)
     text = message.text or ""
     if not text or text.startswith("/"):
+        return
+    if text in ["ℹ️ درباره", "📊 آمار من", "📜 تاریخچه"]:
         return
     if message.chat.type in ["group", "supergroup"]:
         username = bot.get_me().username
@@ -283,7 +289,7 @@ def handler(message):
         result = decode(text)
         conv_type = "decode"
     update_conversion(user.id, text, result, conv_type)
-    bot.reply_to(message, f"<code>{result}</code>", parse_mode="HTML")
+    bot.reply_to(message, f"<code>{result}</code>", parse_mode="HTML", reply_markup=main_keyboard())
 
 print("🤖 ربات روشن شد...")
 bot.infinity_polling(skip_pending=True, timeout=30, long_polling_timeout=30)
