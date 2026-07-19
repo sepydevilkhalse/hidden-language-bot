@@ -2,7 +2,12 @@ import telebot
 import re
 import sqlite3
 from datetime import datetime
-from telebot.types import ReplyKeyboardMarkup, KeyboardButton
+from telebot.types import (
+    ReplyKeyboardMarkup,
+    KeyboardButton,
+    WebAppInfo,
+    BotCommand
+)
 
 TOKEN = "8943897493:AAEBKncLQgRKNZ0Gidw2WDtwYmQO_2_8GL4"
 bot = telebot.TeleBot(TOKEN)
@@ -183,14 +188,26 @@ def decode(text):
 
 # ==================== منوی پایین صفحه ====================
 def main_keyboard():
-    keyboard = ReplyKeyboardMarkup(row_width=2, resize_keyboard=True)
+    keyboard = ReplyKeyboardMarkup(resize_keyboard=True)
+
     keyboard.add(
-        KeyboardButton("ℹ️ درباره"),
-        KeyboardButton("📊 آمار من")
+        KeyboardButton(
+            text="🌐 Hidden Language",
+            web_app=WebAppInfo(
+                "https://sepydevilkhalse.github.io/hidden-language-webapp/"
+            )
+        )
     )
-    keyboard.add(
+
+    keyboard.row(
+        KeyboardButton("📊 آمار من"),
         KeyboardButton("📜 تاریخچه")
     )
+
+    keyboard.row(
+        KeyboardButton("ℹ️ درباره")
+    )
+
     return keyboard
 
 @bot.message_handler(commands=['start'])
@@ -292,4 +309,11 @@ def handler(message):
     bot.reply_to(message, f"<code>{result}</code>", parse_mode="HTML", reply_markup=main_keyboard())
 
 print("🤖 ربات روشن شد...")
+bot.set_my_commands([
+    BotCommand("start", "شروع ربات"),
+    BotCommand("help", "راهنما"),
+    BotCommand("about", "درباره ربات"),
+    BotCommand("stats", "آمار من"),
+    BotCommand("history", "تاریخچه"),
+])
 bot.infinity_polling(skip_pending=True, timeout=30, long_polling_timeout=30)
