@@ -191,17 +191,6 @@ def decode(text):
 
 # ==================== منوی پایین صفحه ====================
 
-def main_keyboard():
-    keyboard = ReplyKeyboardMarkup(row_width=2, resize_keyboard=True)
-    keyboard.add(
-        KeyboardButton("ℹ️ درباره"),
-        KeyboardButton("📊 آمار من")
-    )
-    keyboard.add(
-        KeyboardButton("📜 تاریخچه")
-    )
-    return keyboard
-
 @bot.message_handler(commands=['start'])
 def start(message):
     user = message.from_user
@@ -226,7 +215,7 @@ def start(message):
 📊 آمار شخصی
 
 📩 فقط پیام خودتو بفرست..."""
-    bot.reply_to(message, text, parse_mode="Markdown", reply_markup=main_keyboard())
+    bot.reply_to(message, text, parse_mode="Markdown")
 @bot.message_handler(commands=['about'])
 def about_command(message):
     about_button(message)
