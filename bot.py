@@ -2,12 +2,11 @@ import telebot
 import re
 import sqlite3
 from datetime import datetime
-from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo, ReplyKeyboardMarkup, KeyboardButton
+from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 TOKEN = "8943897493:AAEBKncLQgRKNZ0Gidw2WDtwYmQO_2_8GL4"
 bot = telebot.TeleBot(TOKEN)
 
-# ================ دیکشنری‌ها ================
 letters = {
     'ا': '1', 'آ': '1', 'ب': '2', 'پ': '3', 'ت': '4', 'ث': '5',
     'ج': '6', 'چ': '7', 'ح': '8', 'خ': '9', 'د': '10', 'ذ': '11',
@@ -22,21 +21,10 @@ number_to_d = {
     '5': 'd5', '6': 'd6', '7': 'd7', '8': 'd8', '9': 'd9'
 }
 
-numbers = {
-    '1': 'ا', '2': 'ب', '3': 'پ', '4': 'ت', '5': 'ث',
-    '6': 'ج', '7': 'چ', '8': 'ح', '9': 'خ', '10': 'د',
-    '11': 'ذ', '12': 'ر', '13': 'ز', '14': 'ژ', '15': 'س',
-    '16': 'ش', '17': 'ص', '18': 'ض', '19': 'ط', '20': 'ظ',
-    '21': 'ع', '22': 'غ', '23': 'ف', '24': 'ق', '25': 'ک',
-    '26': 'گ', '27': 'ل', '28': 'م', '29': 'ن', '30': 'و',
-    '31': 'ه', '32': 'ی'
-}
-
+numbers = {v: k for k, v in letters.items()}
 persian_to_english = str.maketrans("۰۱۲۳۴۵۶۷۸۹", "0123456789")
-english_to_persian = str.maketrans("0123456789", "۰۱۲۳۴۵۶۷۸۹")
 SPECIAL_PATTERN = re.compile(r'[\U0001F600-\U0001F64F]|[\U0001F300-\U0001F5FF]|[\U0001F680-\U0001F6FF]|[\U0001F700-\U0001F77F]|[\U0001F780-\U0001F7FF]|[\U0001F800-\U0001F8FF]|[\U0001F900-\U0001F9FF]|[\U0001FA00-\U0001FA6F]|[\U0001FA70-\U0001FAFF]|[\U00002702-\U000027B0]|[\U000024C2-\U0001F251]|[\u2600-\u27BF]|[!؟.،,;:؟؟٬٪×÷+-=@#$%^&*(){}<>~`\'"/|]')
 
-# ================ دیتابیس ================
 def init_db():
     conn = sqlite3.connect('bot.db')
     c = conn.cursor()
@@ -174,57 +162,33 @@ def decode(text):
         for part in parts:
             if not part:
                 continue
-            if 'd' in part:
-                codes = part.split('_')
-                word = ''
-                for c in codes:
-                    if c.startswith('d') and c[1:].isdigit():
-                        num = c[1:]
-                        word += num.translate(english_to_persian)
-                    elif c in numbers:
-                        word += numbers[c]
+            match = re.match(r'^([\d_]+)(.*)$', part)
+            if match:
+                code = match.group(1)
+                special = match.group(2)
+                result = ""
+                for c in code.split("_"):
+                    if c in numbers:
+                        result += numbers[c]
+                    elif c.startswith('d') and c[1:].isdigit():
+                        result += c[1:]
                     else:
-                        word += c
-                result_words.append(word)
+                        result += c
+                result += special
+                result_words.append(result)
             else:
-                match = re.match(r'^([\d_]+)(.*)$', part)
-                if match:
-                    code = match.group(1)
-                    special = match.group(2)
-                    result = ""
-                    for c in code.split("_"):
-                        if c in numbers:
-                            result += numbers[c]
-                        else:
-                            result += c
-                    result += special
-                    result_words.append(result)
-                else:
-                    result_words.append(part)
+                result_words.append(part)
         final_lines.append(" ".join(result_words))
     return "\n".join(final_lines)
 
-# ================ منوی پایین صفحه (فقط یک بار) ================
-def reply_menu():
-    keyboard = ReplyKeyboardMarkup(row_width=2, resize_keyboard=True)
+def main_menu():
+    keyboard = InlineKeyboardMarkup(row_width=2)
     keyboard.add(
-        KeyboardButton("ℹ️ درباره"),
-        KeyboardButton("📊 آمار من")
+        InlineKeyboardButton("ℹ️ درباره", callback_data="about"),
+        InlineKeyboardButton("📊 آمار من", callback_data="stats")
     )
     keyboard.add(
-        KeyboardButton("📜 تاریخچه"),
-        KeyboardButton("📱 برنامه")
-    )
-    return keyboard
-
-# ================ منوی شیشه‌ای (برای برنامه) ================
-def inline_app_menu():
-    keyboard = InlineKeyboardMarkup(row_width=1)
-    keyboard.add(
-        InlineKeyboardButton(
-            "🌐 باز کردن برنامه",
-            web_app=WebAppInfo("https://sepydevilkhalse.github.io/hidden-language-webapp/")
-        )
+        InlineKeyboardButton("📜 تاریخچه", callback_data="history")
     )
     return keyboard
 
@@ -252,12 +216,13 @@ def start(message):
 📊 آمار شخصی
 
 📩 فقط پیام خودتو بفرست..."""
-    bot.reply_to(message, text, parse_mode="Markdown", reply_markup=reply_menu())
+    bot.reply_to(message, text, parse_mode="Markdown", reply_markup=main_menu())
 
-# ================ هندلر دکمه‌های پایین ================
-@bot.message_handler(func=lambda m: m.text == "ℹ️ درباره")
-def about_button(message):
-    about_text = """ℹ️ **درباره ربات**
+@bot.callback_query_handler(func=lambda call: True)
+def callback_handler(call):
+    user_id = call.from_user.id
+    if call.data == "about":
+        about_text = """ℹ️ **درباره ربات**
 
 🤖 نسخه: 2.1
 📅 2025
@@ -266,45 +231,35 @@ def about_button(message):
 ✅ تشخیص خودکار
 ✅ پشتیبانی از اعداد (d1, d2, ...)
 ✅ تاریخچه و آمار"""
-    bot.reply_to(message, about_text, parse_mode="Markdown")
+        bot.edit_message_text(about_text, call.message.chat.id, call.message.message_id, parse_mode="Markdown", reply_markup=main_menu())
+        bot.answer_callback_query(call.id)
+    elif call.data == "stats":
+        stats = get_user_stats(user_id)
+        if stats:
+            total, first = stats
+            stats_text = f"📊 **آمار شما**\n\n📝 تعداد تبدیل‌ها: {total}\n📆 عضویت: {first[:10]}"
+        else:
+            stats_text = "📊 هنوز تبدیلی انجام ندادید!"
+        bot.edit_message_text(stats_text, call.message.chat.id, call.message.message_id, parse_mode="Markdown", reply_markup=main_menu())
+        bot.answer_callback_query(call.id)
+    elif call.data == "history":
+        history = get_history(user_id, 5)
+        if history:
+            history_text = "📜 **۵ تبدیل اخیر:**\n\n"
+            for i, (inp, out, ts) in enumerate(history, 1):
+                history_text += f"{i}. `{inp[:30]}` ➜ `{out[:30]}`\n"
+                history_text += f"   📅 {ts[:16]}\n\n"
+        else:
+            history_text = "📜 هنوز تبدیلی انجام ندادید!"
+        bot.edit_message_text(history_text, call.message.chat.id, call.message.message_id, parse_mode="Markdown", reply_markup=main_menu())
+        bot.answer_callback_query(call.id)
 
-@bot.message_handler(func=lambda m: m.text == "📊 آمار من")
-def stats_button(message):
-    user_id = message.from_user.id
-    stats = get_user_stats(user_id)
-    if stats:
-        total, first = stats
-        stats_text = f"📊 **آمار شما**\n\n📝 تعداد تبدیل‌ها: {total}\n📆 عضویت: {first[:10]}"
-    else:
-        stats_text = "📊 هنوز تبدیلی انجام ندادید!"
-    bot.reply_to(message, stats_text, parse_mode="Markdown")
-
-@bot.message_handler(func=lambda m: m.text == "📜 تاریخچه")
-def history_button(message):
-    user_id = message.from_user.id
-    history = get_history(user_id, 5)
-    if history:
-        history_text = "📜 **۵ تبدیل اخیر:**\n\n"
-        for i, (inp, out, ts) in enumerate(history, 1):
-            history_text += f"{i}. `{inp[:30]}` ➜ `{out[:30]}`\n"
-            history_text += f"   📅 {ts[:16]}\n\n"
-    else:
-        history_text = "📜 هنوز تبدیلی انجام ندادید!"
-    bot.reply_to(message, history_text, parse_mode="Markdown")
-
-@bot.message_handler(func=lambda m: m.text == "📱 برنامه")
-def app_button(message):
-    bot.reply_to(message, "📱 برای باز کردن برنامه کلیک کن:", reply_markup=inline_app_menu())
-
-# ================ هندلر اصلی ================
 @bot.message_handler(func=lambda m: True)
 def handler(message):
     user = message.from_user
     add_user(user.id, user.first_name, user.last_name, user.username)
     text = message.text or ""
     if not text or text.startswith("/"):
-        return
-    if text in ["ℹ️ درباره", "📊 آمار من", "📜 تاریخچه", "📱 برنامه"]:
         return
     if message.chat.type in ["group", "supergroup"]:
         username = bot.get_me().username
