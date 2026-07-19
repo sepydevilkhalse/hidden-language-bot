@@ -190,6 +190,18 @@ def decode(text):
     return "\n".join(final_lines)
 
 # ==================== منوی پایین صفحه ====================
+
+def main_keyboard():
+    keyboard = ReplyKeyboardMarkup(row_width=2, resize_keyboard=True)
+    keyboard.add(
+        KeyboardButton("ℹ️ درباره"),
+        KeyboardButton("📊 آمار من")
+    )
+    keyboard.add(
+        KeyboardButton("📜 تاریخچه")
+    )
+    return keyboard
+
 @bot.message_handler(commands=['start'])
 def start(message):
     user = message.from_user
