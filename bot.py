@@ -223,7 +223,7 @@ def inline_app_menu():
     keyboard.add(
         InlineKeyboardButton(
             "🌐 باز کردن برنامه",
-            web_app=WebAppInfo(url="https://hiddenlanguage.netlify.app")
+            web_app=WebAppInfo(url="https://raw.githubusercontent.com/sepydevilkhalse/hidden-language-bot/main/index.html")
         )
     )
     return keyboard
