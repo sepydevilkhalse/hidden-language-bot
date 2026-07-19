@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hidden Language</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        .container {
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            max-width: 500px;
+            width: 100%;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 25px;
+        }
+        .header h1 {
+            color: #764ba2;
+            font-size: 28px;
+            margin-bottom: 5px;
+        }
+        .header p {
+            color: #a0aec0;
+            font-size: 14px;
+        }
+        textarea {
+            width: 100%;
+            height: 120px;
+            padding: 15px;
+            border: 2px solid #e2e8f0;
+            border-radius: 12px;
+            font-size: 16px;
+            font-family: inherit;
+            resize: vertical;
+            transition: border-color 0.3s;
+            background: #f7fafc;
+        }
+        textarea:focus {
+            outline: none;
+            border-color: #764ba2;
+            background: white;
+        }
+        .btn-group {
+            display: flex;
+            gap: 10px;
+            margin: 15px 0;
+        }
+        .btn-group button {
+            flex: 1;
+            padding: 12px;
+            border: none;
+            border-radius: 12px;
+            font-size: 15px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .btn-encode {
+            background: #667eea;
+            color: white;
+        }
+        .btn-encode:hover {
+            background: #5a67d8;
+            transform: scale(1.02);
+        }
+        .btn-decode {
+            background: #764ba2;
+            color: white;
+        }
+        .btn-decode:hover {
+            background: #6a3d9a;
+            transform: scale(1.02);
+        }
+        .btn-copy {
+            background: #48bb78;
+            color: white;
+        }
+        .btn-copy:hover {
+            background: #38a169;
+            transform: scale(1.02);
+        }
+        .btn-clear {
+            background: #fc8181;
+            color: white;
+        }
+        .btn-clear:hover {
+            background: #f56565;
+            transform: scale(1.02);
+        }
+        .result-box {
+            background: #f7fafc;
+            padding: 15px;
+            border-radius: 12px;
+            margin-top: 15px;
+            min-height: 60px;
+            word-wrap: break-word;
+            font-family: 'Courier New', monospace;
+            font-size: 16px;
+            border: 2px dashed #e2e8f0;
+            color: #2d3748;
+        }
+        .result-box.empty {
+            color: #a0aec0;
+        }
+        .stats {
+            text-align: center;
+            color: #718096;
+            font-size: 13px;
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 1px solid #e2e8f0;
+        }
+        .footer {
+            text-align: center;
+            color: #a0aec0;
+            font-size: 12px;
+            margin-top: 15px;
+        }
+        .badge {
+            display: inline-block;
+            background: #667eea;
+            color: white;
+            padding: 2px 10px;
+            border-radius: 20px;
+            font-size: 12px;
+        }
+        @media (max-width: 480px) {
+            .container {
+                padding: 20px;
+            }
+            .btn-group {
+                flex-wrap: wrap;
+            }
+            .btn-group button {
+                min-width: 45%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔐 Hidden Language</h1>
+            <p>تبدیل فارسی ↔ کد مخفی</p>
+        </div>
+        
+        <textarea id="inputText" placeholder="متن فارسی یا کد مخفی را وارد کنید..."></textarea>
+        
+        <div class="btn-group">
+            <button class="btn-encode" onclick="convert('encode')">🔐 تبدیل به کد</button>
+            <button class="btn-decode" onclick="convert('decode')">🔓 تبدیل به فارسی</button>
+        </div>
+        <div class="btn-group">
+            <button class="btn-copy" onclick="copyResult()">📋 کپی</button>
+            <button class="btn-clear" onclick="clearText()">🗑 پاک</button>
+        </div>
+        
+        <div class="result-box empty" id="result">نتیجه اینجا نمایش داده میشود...</div>
+        
+        <div class="stats">
+            📊 <span id="statsCount">۰</span> تبدیل انجام شده
+            <span class="badge" id="lastType">-</span>
+        </div>
+        <div class="footer">⚡ سریع و هوشمند • v2.0</div>
+    </div>
+    
+    <script>
+        let conversionCount = 0;
+        
+        const letters = {
+            'ا':'1','آ':'1','ب':'2','پ':'3','ت':'4','ث':'5',
+            'ج':'6','چ':'7','ح':'8','خ':'9','د':'10','ذ':'11',
+            'ر':'12','ز':'13','ژ':'14','س':'15','ش':'16','ص':'17',
+            'ض':'18','ط':'19','ظ':'20','ع':'21','غ':'22','ف':'23',
+            'ق':'24','ک':'25','گ':'26','ل':'27','م':'28','ن':'29',
+            'و':'30','ه':'31','ی':'32'
+        };
+        
+        const numbers = {};
+        for (let key in letters) {
+            numbers[letters[key]] = key;
+        }
+        
+        function convert(type) {
+            const input = document.getElementById('inputText').value;
+            if (!input.trim()) {
+                alert('⚠️ لطفاً متنی وارد کنید!');
+                return;
+            }
+            
+            let result = '';
+            let typeText = '';
+            
+            if (type === 'encode') {
+                // تبدیل فارسی به کد
+                let parts = [];
+                let currentWord = '';
+                
+                for (let ch of input) {
+                    if (ch === ' ' || ch === '\n') {
+                        if (currentWord) {
+                            parts.push(currentWord);
+                            currentWord = '';
+                        }
+                        parts.push(ch === ' ' ? '•' : '\n');
+                    } else if (letters[ch]) {
+                        currentWord += letters[ch] + '_';
+                    } else if (ch.match(/\d/)) {
+                        currentWord += 'd' + ch + '_';
+                    } else {
+                        if (currentWord) {
+                            parts.push(currentWord.slice(0, -1));
+                            currentWord = '';
+                        }
+                        parts.push(ch);
+                    }
+                }
+                if (currentWord) {
+                    parts.push(currentWord.slice(0, -1));
+                }
+                
+                result = parts.join('');
+                typeText = 'تبدیل به کد';
+            } else {
+                // تبدیل کد به فارسی
+                let parts = input.split('•');
+                let resultParts = [];
+                
+                for (let part of parts) {
+                    let codes = part.split('_');
+                    let word = '';
+                    for (let code of codes) {
+                        if (numbers[code]) {
+                            word += numbers[code];
+                        } else if (code.startsWith('d') && code.slice(1).match(/^\d+$/)) {
+                            word += code.slice(1);
+                        } else {
+                            word += code;
+                        }
+                    }
+                    resultParts.push(word);
+                }
+                
+                result = resultParts.join(' ');
+                typeText = 'تبدیل به فارسی';
+            }
+            
+            document.getElementById('result').textContent = result || 'خطا در تبدیل!';
+            document.getElementById('result').className = 'result-box';
+            conversionCount++;
+            document.getElementById('statsCount').textContent = conversionCount;
+            document.getElementById('lastType').textContent = typeText;
+        }
+        
+        function copyResult() {
+            const result = document.getElementById('result').textContent;
+            if (result && result !== 'نتیجه اینجا نمایش داده میشود...' && result !== 'خطا در تبدیل!') {
+                navigator.clipboard.writeText(result).then(() => {
+                    showToast('✅ کپی شد!');
+                }).catch(() => {
+                    // روش جایگزین
+                    const textarea = document.createElement('textarea');
+                    textarea.value = result;
+                    document.body.appendChild(textarea);
+                    textarea.select();
+                    document.execCommand('copy');
+                    document.body.removeChild(textarea);
+                    showToast('✅ کپی شد!');
+                });
+            } else {
+                showToast('⚠️ هیچ نتیجه‌ای برای کپی وجود ندارد!');
+            }
+        }
+        
+        function clearText() {
+            document.getElementById('inputText').value = '';
+            document.getElementById('result').textContent = 'نتیجه اینجا نمایش داده میشود...';
+            document.getElementById('result').className = 'result-box empty';
+        }
+        
+        function showToast(msg) {
+            const toast = document.createElement('div');
+            toast.textContent = msg;
+            toast.style.cssText = `
+                position: fixed;
+                bottom: 20px;
+                left: 50%;
+                transform: translateX(-50%);
+                background: rgba(0,0,0,0.8);
+                color: white;
+                padding: 12px 30px;
+                border-radius: 12px;
+                font-size: 16px;
+                z-index: 1000;
+                animation: fadeInOut 2s ease;
+                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            `;
+            document.body.appendChild(toast);
+            setTimeout(() => {
+                toast.remove();
+            }, 2000);
+        }
+        
+        // اضافه کردن انیمیشن
+        const style = document.createElement('style');
+        style.textContent = `
+            @keyframes fadeInOut {
+                0% { opacity: 0; transform: translateX(-50%) translateY(20px); }
+                15% { opacity: 1; transform: translateX(-50%) translateY(0); }
+                85% { opacity: 1; transform: translateX(-50%) translateY(0); }
+                100% { opacity: 0; transform: translateX(-50%) translateY(-20px); }
+            }
+        `;
+        document.head.appendChild(style);
+    </script>
+</body>
+</html>
