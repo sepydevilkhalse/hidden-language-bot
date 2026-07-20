@@ -22,6 +22,28 @@ letters = {
     'و': '30', 'ه': '31', 'ی': '32'
 }
 
+# دیکشنری اعداد به یونانی (جداگانه برای ۰ و ۱)
+number_to_greek = {
+    '0': 'ο',    # امیکرون (صفر)
+    '1': 'α',    # آلفا (یک)
+    '2': 'β',    # بتا
+    '3': 'γ',    # گاما
+    '4': 'δ',    # دلتا
+    '5': 'ε',    # اپسیلون
+    '6': 'ϛ',    # استیگما
+    '7': 'ζ',    # زتا
+    '8': 'η',    # اتا
+    '9': 'θ',    # تتا
+    '10': 'ι'    # یوتا
+}
+
+# دیکشنری معکوس (یونانی به عدد)
+greek_to_num = {
+    'ο': '0', 'α': '1', 'β': '2', 'γ': '3', 'δ': '4',
+    'ε': '5', 'ϛ': '6', 'ζ': '7', 'η': '8', 'θ': '9', 'ι': '10'
+}
+
+# دیکشنری اعداد به d1, d2 (برای زمانی که کد مخفی خالص میخوایم)
 number_to_d = {
     '0': 'd0', '1': 'd1', '2': 'd2', '3': 'd3', '4': 'd4',
     '5': 'd5', '6': 'd6', '7': 'd7', '8': 'd8', '9': 'd9'
@@ -92,11 +114,9 @@ def get_history(user_id, limit=5):
 def validate(text):
     text = text.translate(persian_to_english)
     nums = re.findall(r'\d+', text)
-
     for n in nums:
         if int(n) > 32:
             return False
-
     return True
 
 def split_by_space_and_special(text):
@@ -128,10 +148,11 @@ def split_by_space_and_special(text):
         parts.append(("word", current_word))
     return parts
 
-def encode(text):
+def encode(text, convert_to_greek=False):
     text = text.translate(persian_to_english)
     lines = text.split("\n")
     final_lines = []
+    
     for line in lines:
         if not line.strip():
             final_lines.append("")
@@ -149,7 +170,11 @@ def encode(text):
                     if ch in letters:
                         nums.append(letters[ch])
                     elif ch.isdigit():
-                        nums.append(number_to_d.get(ch, ch))
+                        if convert_to_greek:
+                            # اگه حروف فارسی وجود داشت، عدد رو به یونانی تبدیل کن
+                            nums.append(number_to_greek.get(ch, ch))
+                        else:
+                            nums.append(number_to_d.get(ch, ch))
                     else:
                         nums.append(ch)
                 if nums:
@@ -180,6 +205,9 @@ def decode(text):
                         result += numbers[c]
                     elif c.startswith('d') and c[1:].isdigit():
                         result += c[1:]
+                    # چک کردن یونانی (ο, α, β, γ, ...)
+                    elif c in greek_to_num:
+                        result += greek_to_num[c]
                     else:
                         result += c
                 result += special
@@ -188,8 +216,6 @@ def decode(text):
                 result_words.append(part)
         final_lines.append(" ".join(result_words))
     return "\n".join(final_lines)
-
-# ==================== منوی پایین صفحه ====================
 
 @bot.message_handler(commands=['start'])
 def start(message):
@@ -203,35 +229,32 @@ def start(message):
 فقط پیام خودتو بفرست، من خودم تشخیص می‌دم که متن فارسیه یا کد مخفی!
 
 **مثال:**
-`سلام ۵` ➜ `15_27_1_28•d5`
-`15_27_1_28•d5` ➜ `سلام ۵`
+`سلام ۵` ➜ `15_27_1_28•ε`
+`15_27_1_28•ε` ➜ `سلام ۵`
 
 ⚡ **ویژگی‌ها:**
 🔹 تبدیل سریع و هوشمند
 🧠 تشخیص خودکار متن و کد
-😎 پشتیبانی از اعداد (d1, d2, ...)
+😎 پشتیبانی از اعداد یونانی (ο, α, β, γ, ...)
 😈 حفظ کامل ایموجی‌ها
 📜 ذخیره تاریخچه تبدیل‌ها
 📊 آمار شخصی
 
 📩 فقط پیام خودتو بفرست..."""
     bot.reply_to(message, text, parse_mode="Markdown")
+
 @bot.message_handler(commands=['about'])
 def about_command(message):
     about_button(message)
-
 
 @bot.message_handler(commands=['stats'])
 def stats_command(message):
     stats_button(message)
 
-
 @bot.message_handler(commands=['history'])
 def history_command(message):
     history_button(message)
 
-
-# ==================== هندلر دکمه‌ها ====================
 def about_button(message):
     about_text = """ℹ️ **درباره ربات**
 
@@ -240,7 +263,7 @@ def about_button(message):
 
 ✅ تبدیل فارسی ↔ کد مخفی
 ✅ تشخیص خودکار
-✅ پشتیبانی از اعداد (d1, d2, ...)
+✅ پشتیبانی از اعداد یونانی (ο, α, β, γ, ...)
 ✅ تاریخچه و آمار"""
     bot.reply_to(message, about_text, parse_mode="Markdown")
 
@@ -266,7 +289,6 @@ def history_button(message):
         history_text = "📜 هنوز تبدیلی انجام ندادید!"
     bot.reply_to(message, history_text, parse_mode="Markdown")
 
-# ==================== هندلر اصلی ====================
 @bot.message_handler(func=lambda m: True)
 def handler(message):
     user = message.from_user
@@ -290,13 +312,16 @@ def handler(message):
     if not validate(text):
         bot.reply_to(message, "❌ عدد وارد شده در زبان نمی‌باشد.")
         return
+    
     has_persian = bool(re.search(r'[ا-ی]', text))
+    
     if has_persian:
-        result = encode(text)
-        conv_type = "encode"
+        result = encode(text, convert_to_greek=True)
+        conv_type = "encode_greek"
     else:
         result = decode(text)
         conv_type = "decode"
+    
     update_conversion(user.id, text, result, conv_type)
     bot.reply_to(message, f"<code>{result}</code>", parse_mode="HTML")
 
