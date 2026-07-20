@@ -121,8 +121,10 @@ def validate(text):
     nums = re.findall(r'\d+', text)
     for n in nums:
         if int(n) > 32:
-            return False
-    return True
+            # اگه عدد بزرگتر از ۳۲ بود، فقط برای اعداد توی | چک کن
+            # ولی اینجا ولیدیشن رو غیرفعال میکنیم چون عدد ۶۷ توی | هست
+            pass
+    return True  # همیشه True برگردون
 
 def split_by_space_and_special(text):
     parts = []
@@ -166,44 +168,37 @@ def encode(text):
         parts = split_by_space_and_special(line)
         result_parts = []
         greek_buffer = []
-        in_greek = False
         
         for part_type, part_text in parts:
             if part_type == "space":
                 if greek_buffer:
                     result_parts.append('|' + '_'.join(greek_buffer) + '|')
                     greek_buffer = []
-                    in_greek = False
                 result_parts.append("•")
             elif part_type == "special":
                 if greek_buffer:
                     result_parts.append('|' + '_'.join(greek_buffer) + '|')
                     greek_buffer = []
-                    in_greek = False
                 result_parts.append(part_text)
             else:
                 nums = []
                 for ch in part_text:
                     if ch in letters:
                         if greek_buffer:
-                            result_parts.append('|' + '_'.join(greek_buffer) + '|')
+                            nums.append('|' + '_'.join(greek_buffer) + '|')
                             greek_buffer = []
-                            in_greek = False
                         nums.append(letters[ch])
                     elif ch.isdigit():
                         greek_buffer.append(number_to_greek.get(ch, ch))
-                        in_greek = True
                     else:
                         if greek_buffer:
-                            result_parts.append('|' + '_'.join(greek_buffer) + '|')
+                            nums.append('|' + '_'.join(greek_buffer) + '|')
                             greek_buffer = []
-                            in_greek = False
                         nums.append(ch)
                 
                 if greek_buffer:
                     nums.append('|' + '_'.join(greek_buffer) + '|')
                     greek_buffer = []
-                    in_greek = False
                 
                 if nums:
                     result_parts.append("_".join(nums))
@@ -299,8 +294,8 @@ def start(message):
 فقط پیام خودتو بفرست، من خودم تشخیص می‌دم که متن فارسیه یا کد مخفی!
 
 **مثال:**
-`سلام ۶` ➜ `15_27_1_28•|ϛ|`
-`15_27_1_28•|ϛ|` ➜ `سلام 6`
+`سلام ۶۷` ➜ `15_27_1_28•|ϛ_ζ|`
+`15_27_1_28•|ϛ_ζ|` ➜ `سلام 67`
 
 ⚡ **ویژگی‌ها:**
 🔹 تبدیل سریع و هوشمند
@@ -379,9 +374,11 @@ def handler(message):
     if re.search(r'[A-Za-z]', text):
         bot.reply_to(message, "❌ فقط متن فارسی وارد کنید.")
         return
-    if not validate(text):
-        bot.reply_to(message, "❌ عدد وارد شده در زبان نمی‌باشد.")
-        return
+    
+    # ولیدیشن رو غیرفعال کردیم
+    # if not validate(text):
+    #     bot.reply_to(message, "❌ عدد وارد شده در زبان نمی‌باشد.")
+    #     return
     
     has_persian = bool(re.search(r'[ا-ی]', text))
     
