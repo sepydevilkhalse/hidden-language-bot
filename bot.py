@@ -145,8 +145,7 @@ def encode(text):
             final_lines.append("")
             continue
         
-        # تشخیص اینکه خط فارسی دارد یا نه
-        original_line = line  # برای چک کردن فارسی
+        original_line = line
         has_persian = bool(re.search(r'[ا-ی]', original_line))
         
         parts = split_by_space_and_special(line)
@@ -168,7 +167,6 @@ def encode(text):
                             current_greek = []
                         nums.append(letters[ch])
                     elif ch.isdigit():
-                        # فقط اگه خط فارسی داشت، عدد رو یونانی کن
                         if has_persian:
                             current_greek.append(number_to_greek.get(ch, ch))
                         else:
@@ -304,7 +302,7 @@ def history_command(message):
 def about_button(message):
     about_text = """ℹ️ **درباره ربات**
 
-🤖 نسخه: 3.34
+🤖 نسخه: 3.3.4
 📅 1404/11/25
 
 ✅ تبدیل فارسی ↔ کد مخفی
