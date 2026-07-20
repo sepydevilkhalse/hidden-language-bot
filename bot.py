@@ -364,7 +364,7 @@ def handler(message):
         conv_type = "decode"
     
     update_conversion(user.id, text, result, conv_type)
-    bot.reply_to(message, f"<code>{result}</code>", parse_mode="HTML")
+    bot.reply_to(message, f"{result}")
 
 print("🤖 ربات روشن شد...")
 bot.set_my_commands([
