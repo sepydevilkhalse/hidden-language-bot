@@ -25,6 +25,14 @@ letters = {
     'و': '30', 'ه': '31', 'ی': '32'
 }
 
+# عدد → حرف (۱ → ا، نه آ)
+num_to_letter = {}
+for key, val in letters.items():
+    if val == '1':
+        num_to_letter[val] = 'ا'
+    elif val not in num_to_letter:
+        num_to_letter[val] = key
+
 # اعداد به یونانی (جداگانه برای ۰ و ۱)
 number_to_greek = {
     '0': 'ο',    # امیکرون (صفر)
@@ -162,7 +170,6 @@ def encode(text):
         
         for part_type, part_text in parts:
             if part_type == "space":
-                # اگه بافر یونانی داشتیم، اول ببندش
                 if greek_buffer:
                     result_parts.append('|' + '_'.join(greek_buffer) + '|')
                     greek_buffer = []
@@ -184,7 +191,6 @@ def encode(text):
                             in_greek = False
                         nums.append(letters[ch])
                     elif ch.isdigit():
-                        # عدد رو به یونانی تبدیل کن و توی بافر بذار
                         greek_buffer.append(number_to_greek.get(ch, ch))
                         in_greek = True
                     else:
@@ -194,7 +200,6 @@ def encode(text):
                             in_greek = False
                         nums.append(ch)
                 
-                # اگه بافر یونانی داشتیم، ببندش
                 if greek_buffer:
                     nums.append('|' + '_'.join(greek_buffer) + '|')
                     greek_buffer = []
@@ -203,7 +208,6 @@ def encode(text):
                 if nums:
                     result_parts.append("_".join(nums))
         
-        # اگه بافر یونانی مونده بود
         if greek_buffer:
             result_parts.append('|' + '_'.join(greek_buffer) + '|')
         
@@ -221,7 +225,6 @@ def decode(text):
             final_lines.append("")
             continue
         
-        # اول | رو جدا کن
         parts = []
         current = ""
         in_bracket = False
@@ -248,7 +251,6 @@ def decode(text):
         
         for ptype, ptext in parts:
             if ptype == 'greek':
-                # تبدیل یونانی به عدد
                 tokens = ptext.split('_')
                 for token in tokens:
                     if token in greek_to_num:
@@ -256,28 +258,25 @@ def decode(text):
                     else:
                         current_word += token
             else:
-                # تبدیل عادی
                 if '•' in ptext:
-                    # اگه • داشت، کلمات رو جدا کن
                     word_parts = ptext.split('•')
                     for i, wp in enumerate(word_parts):
                         if wp:
                             nums = wp.split('_')
                             for n in nums:
-                                if n in numbers:
-                                    current_word += numbers[n]
+                                if n in num_to_letter:
+                                    current_word += num_to_letter[n]
                                 else:
                                     current_word += n
                         if i < len(word_parts) - 1:
                             result_words.append(current_word)
                             current_word = ""
                 else:
-                    # کلمه ساده
                     if ptext:
                         nums = ptext.split('_')
                         for n in nums:
-                            if n in numbers:
-                                current_word += numbers[n]
+                            if n in num_to_letter:
+                                current_word += num_to_letter[n]
                             else:
                                 current_word += n
         
@@ -300,8 +299,8 @@ def start(message):
 فقط پیام خودتو بفرست، من خودم تشخیص می‌دم که متن فارسیه یا کد مخفی!
 
 **مثال:**
-`سلام ۱۲۳` ➜ `15_27_1_28•|α_β_γ|`
-`15_27_1_28•|α_β_γ|` ➜ `سلام 123`
+`سلام ۶` ➜ `15_27_1_28•|ϛ|`
+`15_27_1_28•|ϛ|` ➜ `سلام 6`
 
 ⚡ **ویژگی‌ها:**
 🔹 تبدیل سریع و هوشمند
