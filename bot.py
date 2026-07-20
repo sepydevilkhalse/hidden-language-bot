@@ -14,7 +14,7 @@ TOKEN = "8943897493:AAEBKncLQgRKNZ0Gidw2WDtwYmQO_2_8GL4"
 bot = telebot.TeleBot(TOKEN)
 
 # ==============================================
-# دیکشنری‌ها (دقیقاً مثل وب‌اپ)
+# دیکشنری‌ها
 # ==============================================
 letter_to_num = {
     'ا': '1', 'آ': '1', 'ب': '2', 'پ': '3', 'ت': '4', 'ث': '5',
@@ -25,7 +25,6 @@ letter_to_num = {
     'و': '30', 'ه': '31', 'ی': '32'
 }
 
-# عدد → حرف (۱ → ا، نه آ) - مثل وب‌اپ
 num_to_letter = {}
 for key, val in letter_to_num.items():
     if val == '1':
@@ -33,13 +32,11 @@ for key, val in letter_to_num.items():
     elif val not in num_to_letter:
         num_to_letter[val] = key
 
-# اعداد به یونانی (مثل وب‌اپ)
 number_to_greek = {
     '0': 'ο', '1': 'α', '2': 'β', '3': 'γ', '4': 'δ',
     '5': 'ε', '6': 'ϛ', '7': 'ζ', '8': 'η', '9': 'θ', '10': 'ι'
 }
 
-# یونانی به عدد (مثل وب‌اپ)
 greek_to_num = {
     'ο': '0', 'α': '1', 'β': '2', 'γ': '3', 'δ': '4',
     'ε': '5', 'ϛ': '6', 'ζ': '7', 'η': '8', 'θ': '9', 'ι': '10'
@@ -135,12 +132,7 @@ def split_by_space_and_special(text):
         parts.append(("word", current_word))
     return parts
 
-# ==============================================
-# توابع encode و decode (دقیقاً مثل وب‌اپ)
-# ==============================================
-
 def encode(text):
-    """تبدیل متن فارسی به کد مخفی با اعداد یونانی در |"""
     text = text.translate(persian_to_english)
     lines = text.split("\n")
     final_lines = []
@@ -197,7 +189,6 @@ def encode(text):
     return "\n".join(final_lines)
 
 def decode(text):
-    """تبدیل کد مخفی به متن فارسی (با پشتیبانی از |)"""
     text = text.translate(persian_to_english)
     lines = text.split("\n")
     final_lines = []
@@ -364,14 +355,21 @@ def handler(message):
         bot.reply_to(message, "❌ فقط متن فارسی وارد کنید.")
         return
     
+    # ===== تشخیص خودکار =====
     has_persian = bool(re.search(r'[ا-ی]', text))
+    has_greek = bool(re.search(r'[α-ωοϛ]', text) or re.search(r'[Α-ΩΟϚ]', text))
     
-    if has_persian:
+    if has_persian and not has_greek:
+        # فارسی → کد با یونانی
         result = encode(text)
-        conv_type = "encode_greek"
-    else:
+        conv_type = "encode"
+    elif has_greek or (not has_persian and re.search(r'[\d_•|]', text)):
+        # کد → فارسی
         result = decode(text)
         conv_type = "decode"
+    else:
+        result = text
+        conv_type = "none"
     
     update_conversion(user.id, text, result, conv_type)
     bot.reply_to(message, f"<code>{result}</code>", parse_mode="HTML")
