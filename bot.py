@@ -14,7 +14,7 @@ TOKEN = "8943897493:AAEBKncLQgRKNZ0Gidw2WDtwYmQO_2_8GL4"
 bot = telebot.TeleBot(TOKEN)
 
 # ==============================================
-# دیکشنری‌ها (اصلاح شده)
+# دیکشنری‌ها
 # ==============================================
 letter_to_num = {
     'ا': '1', 'آ': '1', 'ب': '2', 'پ': '3', 'ت': '4', 'ث': '5',
@@ -32,20 +32,30 @@ for key, val in letter_to_num.items():
     elif val not in num_to_letter:
         num_to_letter[val] = key
 
-# اعداد به یونانی (فقط ۰ تا ۹)
 number_to_greek = {
     '0': 'ο', '1': 'α', '2': 'β', '3': 'γ', '4': 'δ',
     '5': 'ε', '6': 'ϛ', '7': 'ζ', '8': 'η', '9': 'θ'
 }
 
-# یونانی به عدد (فقط ۰ تا ۹)
 greek_to_num = {
     'ο': '0', 'α': '1', 'β': '2', 'γ': '3', 'δ': '4',
     'ε': '5', 'ϛ': '6', 'ζ': '7', 'η': '8', 'θ': '9'
 }
 
 persian_to_english = str.maketrans("۰۱۲۳۴۵۶۷۸۹", "0123456789")
-SPECIAL_PATTERN = re.compile(r'[\U0001F600-\U0001F64F]|[\U0001F300-\U0001F5FF]|[\U0001F680-\U0001F6FF]|[\U0001F700-\U0001F77F]|[\U0001F780-\U0001F7FF]|[\U0001F800-\U0001F8FF]|[\U0001F900-\U0001F9FF]|[\U0001FA00-\U0001FA6F]|[\U0001FA70-\U0001FAFF]|[\U00002702-\U000027B0]|[\U000024C2-\U0001F251]|[\u2600-\u27BF]|[!؟.،,;:؟؟٬٪×÷+-=@#$%^&*(){}<>~`\'"/|]')
+
+# فقط ایموجی‌ها (بدون علائم نگارشی)
+SPECIAL_PATTERN = re.compile(
+    r'[\U0001F600-\U0001F64F]|'
+    r'[\U0001F300-\U0001F5FF]|'
+    r'[\U0001F680-\U0001F6FF]|'
+    r'[\U0001F700-\U0001F77F]|'
+    r'[\U0001F780-\U0001F7FF]|'
+    r'[\U0001F800-\U0001F8FF]|'
+    r'[\U0001F900-\U0001F9FF]|'
+    r'[\U0001FA00-\U0001FA6F]|'
+    r'[\U0001FA70-\U0001FAFF]'
+)
 
 def init_db():
     conn = sqlite3.connect('bot.db')
@@ -105,82 +115,83 @@ def get_history(user_id, limit=5):
     except:
         return []
 
-def split_by_space_and_special(text):
-    parts = []
-    i = 0
-    current_word = ""
-    while i < len(text):
-        if text[i].isspace():
-            if current_word:
-                parts.append(("word", current_word))
-                current_word = ""
-            space = ""
-            while i < len(text) and text[i].isspace():
-                space += text[i]
-                i += 1
-            parts.append(("space", space))
-            continue
-        special_match = SPECIAL_PATTERN.match(text[i:])
-        if special_match:
-            if current_word:
-                parts.append(("word", current_word))
-                current_word = ""
-            parts.append(("special", special_match.group()))
-            i += len(special_match.group())
-            continue
-        current_word += text[i]
-        i += 1
-    if current_word:
-        parts.append(("word", current_word))
-    return parts
-
 def encode(text):
+    """تبدیل متن فارسی به کد مخفی با اعداد یونانی در | - بازنویسی شده از صفر"""
     text = text.translate(persian_to_english)
-    lines = text.split("\n")
-    final_lines = []
-
+    lines = text.split('\n')
+    result_lines = []
+    
     for line in lines:
         if not line.strip():
-            final_lines.append("")
+            result_lines.append('')
             continue
         
-        parts = split_by_space_and_special(line)
-        result_parts = []
+        output_parts = []
+        current_part = []
+        greek_buffer = []
+        i = 0
         
-        for part_type, part_text in parts:
-            if part_type == "space":
-                result_parts.append("•")
-            elif part_type == "special":
-                result_parts.append(part_text)
-            else:
-                nums = []
-                greek_buffer = []
-                
-                for ch in part_text:
-                    if ch in letter_to_num:
-                        # اگر قبلش عدد یونانی جمع شده، اول اونو ببند
-                        if greek_buffer:
-                            nums.append('|' + '_'.join(greek_buffer) + '|')
-                            greek_buffer = []
-                        nums.append(letter_to_num[ch])
-                    elif ch.isdigit():
-                        greek_buffer.append(number_to_greek[ch])
-                    else:
-                        if greek_buffer:
-                            nums.append('|' + '_'.join(greek_buffer) + '|')
-                            greek_buffer = []
-                        nums.append(ch)
-                
+        while i < len(line):
+            ch = line[i]
+            
+            # بررسی ایموجی
+            special_match = SPECIAL_PATTERN.match(line[i:])
+            if special_match:
+                # بستن بافرهای قبلی
                 if greek_buffer:
-                    nums.append('|' + '_'.join(greek_buffer) + '|')
+                    current_part.append('|' + '_'.join(greek_buffer) + '|')
                     greek_buffer = []
-                
-                if nums:
-                    result_parts.append("_".join(nums))
+                if current_part:
+                    output_parts.append('_'.join(current_part))
+                    current_part = []
+                output_parts.append(special_match.group())
+                i += len(special_match.group())
+                continue
+            
+            # حرف فارسی
+            if ch in letter_to_num:
+                if greek_buffer:
+                    current_part.append('|' + '_'.join(greek_buffer) + '|')
+                    greek_buffer = []
+                current_part.append(letter_to_num[ch])
+                i += 1
+                continue
+            
+            # عدد
+            if ch.isdigit():
+                greek_buffer.append(number_to_greek.get(ch, ch))
+                i += 1
+                continue
+            
+            # فاصله
+            if ch == ' ':
+                if greek_buffer:
+                    current_part.append('|' + '_'.join(greek_buffer) + '|')
+                    greek_buffer = []
+                if current_part:
+                    output_parts.append('_'.join(current_part))
+                    current_part = []
+                output_parts.append('•')
+                i += 1
+                continue
+            
+            # سایر کاراکترها (علائم، ...)
+            if greek_buffer:
+                current_part.append('|' + '_'.join(greek_buffer) + '|')
+                greek_buffer = []
+            current_part.append(ch)
+            i += 1
         
-        final_lines.append("".join(result_parts))
+        # پایان خط
+        if greek_buffer:
+            current_part.append('|' + '_'.join(greek_buffer) + '|')
+            greek_buffer = []
+        if current_part:
+            output_parts.append('_'.join(current_part))
+        
+        result_lines.append(''.join(output_parts))
     
-    return "\n".join(final_lines)
+    return '\n'.join(result_lines)
 
 def decode(text):
     text = text.translate(persian_to_english)
