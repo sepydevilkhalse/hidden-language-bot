@@ -14,7 +14,7 @@ TOKEN = "8943897493:AAEBKncLQgRKNZ0Gidw2WDtwYmQO_2_8GL4"
 bot = telebot.TeleBot(TOKEN)
 
 # ==============================================
-# دیکشنری‌ها
+# دیکشنری‌ها (اصلاح شده)
 # ==============================================
 letter_to_num = {
     'ا': '1', 'آ': '1', 'ب': '2', 'پ': '3', 'ت': '4', 'ث': '5',
@@ -32,14 +32,16 @@ for key, val in letter_to_num.items():
     elif val not in num_to_letter:
         num_to_letter[val] = key
 
+# اعداد به یونانی (فقط ۰ تا ۹)
 number_to_greek = {
     '0': 'ο', '1': 'α', '2': 'β', '3': 'γ', '4': 'δ',
-    '5': 'ε', '6': 'ϛ', '7': 'ζ', '8': 'η', '9': 'θ', '10': 'ι'
+    '5': 'ε', '6': 'ϛ', '7': 'ζ', '8': 'η', '9': 'θ'
 }
 
+# یونانی به عدد (فقط ۰ تا ۹)
 greek_to_num = {
     'ο': '0', 'α': '1', 'β': '2', 'γ': '3', 'δ': '4',
-    'ε': '5', 'ϛ': '6', 'ζ': '7', 'η': '8', 'θ': '9', 'ι': '10'
+    'ε': '5', 'ϛ': '6', 'ζ': '7', 'η': '8', 'θ': '9'
 }
 
 persian_to_english = str.maketrans("۰۱۲۳۴۵۶۷۸۹", "0123456789")
@@ -144,30 +146,25 @@ def encode(text):
         
         parts = split_by_space_and_special(line)
         result_parts = []
-        greek_buffer = []
         
         for part_type, part_text in parts:
             if part_type == "space":
-                if greek_buffer:
-                    result_parts.append('|' + '_'.join(greek_buffer) + '|')
-                    greek_buffer = []
                 result_parts.append("•")
             elif part_type == "special":
-                if greek_buffer:
-                    result_parts.append('|' + '_'.join(greek_buffer) + '|')
-                    greek_buffer = []
                 result_parts.append(part_text)
             else:
                 nums = []
+                greek_buffer = []
                 
                 for ch in part_text:
                     if ch in letter_to_num:
+                        # اگر قبلش عدد یونانی جمع شده، اول اونو ببند
                         if greek_buffer:
                             nums.append('|' + '_'.join(greek_buffer) + '|')
                             greek_buffer = []
                         nums.append(letter_to_num[ch])
                     elif ch.isdigit():
-                        greek_buffer.append(number_to_greek.get(ch, ch))
+                        greek_buffer.append(number_to_greek[ch])
                     else:
                         if greek_buffer:
                             nums.append('|' + '_'.join(greek_buffer) + '|')
@@ -180,9 +177,6 @@ def encode(text):
                 
                 if nums:
                     result_parts.append("_".join(nums))
-        
-        if greek_buffer:
-            result_parts.append('|' + '_'.join(greek_buffer) + '|')
         
         final_lines.append("".join(result_parts))
     
@@ -274,6 +268,8 @@ def start(message):
 **مثال:**
 `ا۱` ➜ `1|α|`
 `1|α|` ➜ `ا1`
+`سلام ۶` ➜ `15_27_1_28•|ϛ|`
+`15_27_1_28•|ϛ|` ➜ `سلام 6`
 `سلام ۶۷` ➜ `15_27_1_28•|ϛ_ζ|`
 `15_27_1_28•|ϛ_ζ|` ➜ `سلام 67`
 
@@ -355,16 +351,13 @@ def handler(message):
         bot.reply_to(message, "❌ فقط متن فارسی وارد کنید.")
         return
     
-    # ===== تشخیص خودکار =====
     has_persian = bool(re.search(r'[ا-ی]', text))
     has_greek = bool(re.search(r'[α-ωοϛ]', text) or re.search(r'[Α-ΩΟϚ]', text))
     
     if has_persian and not has_greek:
-        # فارسی → کد با یونانی
         result = encode(text)
         conv_type = "encode"
     elif has_greek or (not has_persian and re.search(r'[\d_•|]', text)):
-        # کد → فارسی
         result = decode(text)
         conv_type = "decode"
     else:
