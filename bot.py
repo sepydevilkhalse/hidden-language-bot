@@ -167,10 +167,8 @@ def encode(text):
                             current_greek = []
                         nums.append(letters[ch])
                     elif ch.isdigit():
-                        if has_persian:
-                            current_greek.append(number_to_greek.get(ch, ch))
-                        else:
-                            nums.append(ch)
+                        # همیشه عدد رو به یونانی تبدیل کن (چه فارسی باشه چه نباشه)
+                        current_greek.append(number_to_greek.get(ch, ch))
                     else:
                         if current_greek:
                             nums.append('|' + '_'.join(current_greek) + '|')
@@ -364,7 +362,7 @@ def handler(message):
         conv_type = "decode"
     
     update_conversion(user.id, text, result, conv_type)
-    bot.reply_to(message, f"{result}")
+    bot.reply_to(message, f"<code>{result}</code>", parse_mode="HTML")
 
 print("🤖 ربات روشن شد...")
 bot.set_my_commands([
