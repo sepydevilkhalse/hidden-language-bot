@@ -13,6 +13,9 @@ from telebot.types import (
 TOKEN = "8943897493:AAEBKncLQgRKNZ0Gidw2WDtwYmQO_2_8GL4"
 bot = telebot.TeleBot(TOKEN)
 
+# ==============================================
+# دیکشنری اصلی
+# ==============================================
 letters = {
     'ا': '1', 'آ': '1', 'ب': '2', 'پ': '3', 'ت': '4', 'ث': '5',
     'ج': '6', 'چ': '7', 'ح': '8', 'خ': '9', 'د': '10', 'ذ': '11',
@@ -22,7 +25,7 @@ letters = {
     'و': '30', 'ه': '31', 'ی': '32'
 }
 
-# دیکشنری اعداد به یونانی (جداگانه برای ۰ و ۱)
+# اعداد به یونانی (جداگانه برای ۰ و ۱)
 number_to_greek = {
     '0': 'ο',    # امیکرون (صفر)
     '1': 'α',    # آلفا (یک)
@@ -41,12 +44,6 @@ number_to_greek = {
 greek_to_num = {
     'ο': '0', 'α': '1', 'β': '2', 'γ': '3', 'δ': '4',
     'ε': '5', 'ϛ': '6', 'ζ': '7', 'η': '8', 'θ': '9', 'ι': '10'
-}
-
-# دیکشنری اعداد به d1, d2 (برای زمانی که کد مخفی خالص میخوایم)
-number_to_d = {
-    '0': 'd0', '1': 'd1', '2': 'd2', '3': 'd3', '4': 'd4',
-    '5': 'd5', '6': 'd6', '7': 'd7', '8': 'd8', '9': 'd9'
 }
 
 numbers = {v: k for k, v in letters.items()}
@@ -148,7 +145,73 @@ def split_by_space_and_special(text):
         parts.append(("word", current_word))
     return parts
 
-def encode(text, convert_to_greek=False):
+def encode(text):
+    text = text.translate(persian_to_english)
+    lines = text.split("\n")
+    final_lines = []
+
+    for line in lines:
+        if not line.strip():
+            final_lines.append("")
+            continue
+        
+        parts = split_by_space_and_special(line)
+        result_parts = []
+        greek_buffer = []
+        in_greek = False
+        
+        for part_type, part_text in parts:
+            if part_type == "space":
+                # اگه بافر یونانی داشتیم، اول ببندش
+                if greek_buffer:
+                    result_parts.append('|' + '_'.join(greek_buffer) + '|')
+                    greek_buffer = []
+                    in_greek = False
+                result_parts.append("•")
+            elif part_type == "special":
+                if greek_buffer:
+                    result_parts.append('|' + '_'.join(greek_buffer) + '|')
+                    greek_buffer = []
+                    in_greek = False
+                result_parts.append(part_text)
+            else:
+                nums = []
+                for ch in part_text:
+                    if ch in letters:
+                        if greek_buffer:
+                            result_parts.append('|' + '_'.join(greek_buffer) + '|')
+                            greek_buffer = []
+                            in_greek = False
+                        nums.append(letters[ch])
+                    elif ch.isdigit():
+                        # عدد رو به یونانی تبدیل کن و توی بافر بذار
+                        greek_buffer.append(number_to_greek.get(ch, ch))
+                        in_greek = True
+                    else:
+                        if greek_buffer:
+                            result_parts.append('|' + '_'.join(greek_buffer) + '|')
+                            greek_buffer = []
+                            in_greek = False
+                        nums.append(ch)
+                
+                # اگه بافر یونانی داشتیم، ببندش
+                if greek_buffer:
+                    nums.append('|' + '_'.join(greek_buffer) + '|')
+                    greek_buffer = []
+                    in_greek = False
+                
+                if nums:
+                    result_parts.append("_".join(nums))
+        
+        # اگه بافر یونانی مونده بود
+        if greek_buffer:
+            result_parts.append('|' + '_'.join(greek_buffer) + '|')
+        
+        final_lines.append("".join(result_parts))
+    
+    return "\n".join(final_lines)
+
+def decode(text):
     text = text.translate(persian_to_english)
     lines = text.split("\n")
     final_lines = []
@@ -157,64 +220,72 @@ def encode(text, convert_to_greek=False):
         if not line.strip():
             final_lines.append("")
             continue
-        parts = split_by_space_and_special(line)
-        result_parts = []
-        for part_type, part_text in parts:
-            if part_type == "space":
-                result_parts.append("•")
-            elif part_type == "special":
-                result_parts.append(part_text)
+        
+        # اول | رو جدا کن
+        parts = []
+        current = ""
+        in_bracket = False
+        
+        for ch in line:
+            if ch == '|':
+                if in_bracket:
+                    parts.append(('greek', current))
+                    current = ""
+                    in_bracket = False
+                else:
+                    if current:
+                        parts.append(('normal', current))
+                        current = ""
+                    in_bracket = True
             else:
-                nums = []
-                for ch in part_text:
-                    if ch in letters:
-                        nums.append(letters[ch])
-                    elif ch.isdigit():
-                        if convert_to_greek:
-                            # اگه حروف فارسی وجود داشت، عدد رو به یونانی تبدیل کن
-                            nums.append(number_to_greek.get(ch, ch))
-                        else:
-                            nums.append(number_to_d.get(ch, ch))
-                    else:
-                        nums.append(ch)
-                if nums:
-                    result_parts.append("_".join(nums))
-        final_lines.append("".join(result_parts))
-    return "\n".join(final_lines)
-
-def decode(text):
-    text = text.translate(persian_to_english)
-    lines = text.split("\n")
-    final_lines = []
-    for line in lines:
-        if not line.strip():
-            final_lines.append("")
-            continue
-        parts = line.split("•")
+                current += ch
+        
+        if current:
+            parts.append(('normal', current) if not in_bracket else ('greek', current))
+        
         result_words = []
-        for part in parts:
-            if not part:
-                continue
-            match = re.match(r'^([\d_]+)(.*)$', part)
-            if match:
-                code = match.group(1)
-                special = match.group(2)
-                result = ""
-                for c in code.split("_"):
-                    if c in numbers:
-                        result += numbers[c]
-                    elif c.startswith('d') and c[1:].isdigit():
-                        result += c[1:]
-                    # چک کردن یونانی (ο, α, β, γ, ...)
-                    elif c in greek_to_num:
-                        result += greek_to_num[c]
+        current_word = ""
+        
+        for ptype, ptext in parts:
+            if ptype == 'greek':
+                # تبدیل یونانی به عدد
+                tokens = ptext.split('_')
+                for token in tokens:
+                    if token in greek_to_num:
+                        current_word += greek_to_num[token]
                     else:
-                        result += c
-                result += special
-                result_words.append(result)
+                        current_word += token
             else:
-                result_words.append(part)
+                # تبدیل عادی
+                if '•' in ptext:
+                    # اگه • داشت، کلمات رو جدا کن
+                    word_parts = ptext.split('•')
+                    for i, wp in enumerate(word_parts):
+                        if wp:
+                            nums = wp.split('_')
+                            for n in nums:
+                                if n in numbers:
+                                    current_word += numbers[n]
+                                else:
+                                    current_word += n
+                        if i < len(word_parts) - 1:
+                            result_words.append(current_word)
+                            current_word = ""
+                else:
+                    # کلمه ساده
+                    if ptext:
+                        nums = ptext.split('_')
+                        for n in nums:
+                            if n in numbers:
+                                current_word += numbers[n]
+                            else:
+                                current_word += n
+        
+        if current_word:
+            result_words.append(current_word)
+        
         final_lines.append(" ".join(result_words))
+    
     return "\n".join(final_lines)
 
 @bot.message_handler(commands=['start'])
@@ -229,13 +300,13 @@ def start(message):
 فقط پیام خودتو بفرست، من خودم تشخیص می‌دم که متن فارسیه یا کد مخفی!
 
 **مثال:**
-`سلام ۵` ➜ `15_27_1_28•ε`
-`15_27_1_28•ε` ➜ `سلام ۵`
+`سلام ۱۲۳` ➜ `15_27_1_28•|α_β_γ|`
+`15_27_1_28•|α_β_γ|` ➜ `سلام 123`
 
 ⚡ **ویژگی‌ها:**
 🔹 تبدیل سریع و هوشمند
 🧠 تشخیص خودکار متن و کد
-😎 پشتیبانی از اعداد یونانی (ο, α, β, γ, ...)
+😎 پشتیبانی از اعداد یونانی (ο, α, β, γ, ...) با `|`
 😈 حفظ کامل ایموجی‌ها
 📜 ذخیره تاریخچه تبدیل‌ها
 📊 آمار شخصی
@@ -263,7 +334,7 @@ def about_button(message):
 
 ✅ تبدیل فارسی ↔ کد مخفی
 ✅ تشخیص خودکار
-✅ پشتیبانی از اعداد یونانی (ο, α, β, γ, ...)
+✅ پشتیبانی از اعداد یونانی (ο, α, β, γ, ...) با `|`
 ✅ تاریخچه و آمار"""
     bot.reply_to(message, about_text, parse_mode="Markdown")
 
@@ -316,7 +387,7 @@ def handler(message):
     has_persian = bool(re.search(r'[ا-ی]', text))
     
     if has_persian:
-        result = encode(text, convert_to_greek=True)
+        result = encode(text)
         conv_type = "encode_greek"
     else:
         result = decode(text)
