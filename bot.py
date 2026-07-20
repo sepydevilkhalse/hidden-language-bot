@@ -54,7 +54,6 @@ greek_to_num = {
     'ε': '5', 'ϛ': '6', 'ζ': '7', 'η': '8', 'θ': '9', 'ι': '10'
 }
 
-numbers = {v: k for k, v in letters.items()}
 persian_to_english = str.maketrans("۰۱۲۳۴۵۶۷۸۹", "0123456789")
 SPECIAL_PATTERN = re.compile(r'[\U0001F600-\U0001F64F]|[\U0001F300-\U0001F5FF]|[\U0001F680-\U0001F6FF]|[\U0001F700-\U0001F77F]|[\U0001F780-\U0001F7FF]|[\U0001F800-\U0001F8FF]|[\U0001F900-\U0001F9FF]|[\U0001FA00-\U0001FA6F]|[\U0001FA70-\U0001FAFF]|[\U00002702-\U000027B0]|[\U000024C2-\U0001F251]|[\u2600-\u27BF]|[!؟.،,;:؟؟٬٪×÷+-=@#$%^&*(){}<>~`\'"/|]')
 
@@ -164,19 +163,16 @@ def encode(text):
             elif part_type == "special":
                 result_parts.append(part_text)
             else:
-                # کلمه رو کاراکتر به کاراکتر بررسی کن
                 nums = []
                 current_greek = []
                 
                 for ch in part_text:
                     if ch in letters:
-                        # اگه بافر یونانی داشت، اول ببندش
                         if current_greek:
                             nums.append('|' + '_'.join(current_greek) + '|')
                             current_greek = []
                         nums.append(letters[ch])
                     elif ch.isdigit():
-                        # عدد رو به یونانی توی بافر بذار
                         current_greek.append(number_to_greek.get(ch, ch))
                     else:
                         if current_greek:
