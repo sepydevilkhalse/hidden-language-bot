@@ -33,19 +33,10 @@ for key, val in letters.items():
     elif val not in num_to_letter:
         num_to_letter[val] = key
 
-# اعداد به یونانی (جداگانه برای ۰ و ۱)
+# اعداد به یونانی
 number_to_greek = {
-    '0': 'ο',    # امیکرون (صفر)
-    '1': 'α',    # آلفا (یک)
-    '2': 'β',    # بتا
-    '3': 'γ',    # گاما
-    '4': 'δ',    # دلتا
-    '5': 'ε',    # اپسیلون
-    '6': 'ϛ',    # استیگما
-    '7': 'ζ',    # زتا
-    '8': 'η',    # اتا
-    '9': 'θ',    # تتا
-    '10': 'ι'    # یوتا
+    '0': 'ο', '1': 'α', '2': 'β', '3': 'γ', '4': 'δ',
+    '5': 'ε', '6': 'ϛ', '7': 'ζ', '8': 'η', '9': 'θ', '10': 'ι'
 }
 
 # دیکشنری معکوس (یونانی به عدد)
@@ -154,6 +145,10 @@ def encode(text):
             final_lines.append("")
             continue
         
+        # تشخیص اینکه خط فارسی دارد یا نه
+        original_line = line  # برای چک کردن فارسی
+        has_persian = bool(re.search(r'[ا-ی]', original_line))
+        
         parts = split_by_space_and_special(line)
         result_parts = []
         
@@ -173,7 +168,11 @@ def encode(text):
                             current_greek = []
                         nums.append(letters[ch])
                     elif ch.isdigit():
-                        current_greek.append(number_to_greek.get(ch, ch))
+                        # فقط اگه خط فارسی داشت، عدد رو یونانی کن
+                        if has_persian:
+                            current_greek.append(number_to_greek.get(ch, ch))
+                        else:
+                            nums.append(ch)
                     else:
                         if current_greek:
                             nums.append('|' + '_'.join(current_greek) + '|')
