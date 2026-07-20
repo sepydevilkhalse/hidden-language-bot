@@ -116,7 +116,7 @@ def get_history(user_id, limit=5):
         return []
 
 def encode(text):
-    """تبدیل متن فارسی به کد مخفی با اعداد یونانی در | - بازنویسی شده از صفر"""
+    """تبدیل متن فارسی به کد مخفی با اعداد یونانی در |"""
     text = text.translate(persian_to_english)
     lines = text.split('\n')
     result_lines = []
@@ -137,7 +137,6 @@ def encode(text):
             # بررسی ایموجی
             special_match = SPECIAL_PATTERN.match(line[i:])
             if special_match:
-                # بستن بافرهای قبلی
                 if greek_buffer:
                     current_part.append('|' + '_'.join(greek_buffer) + '|')
                     greek_buffer = []
@@ -269,6 +268,7 @@ def decode(text):
 def start(message):
     user = message.from_user
     add_user(user.id, user.first_name, user.last_name, user.username)
+    
     text = """✨🔐 **Hidden Language** 🔐✨
 
 👋 به ربات زبان مخفی خوش آمدید!
@@ -293,7 +293,20 @@ def start(message):
 📊 آمار شخصی
 
 📩 فقط پیام خودتو بفرست..."""
+    
     bot.reply_to(message, text, parse_mode="Markdown")
+    
+    # ارسال فایل APK
+    try:
+        with open('Hidden_Language.apk', 'rb') as apk:
+            bot.send_document(
+                message.chat.id,
+                apk,
+                caption="📱 **برنامه Hidden Language**\n\nدانلود و نصب کن! 🚀",
+                parse_mode="Markdown"
+            )
+    except FileNotFoundError:
+        bot.reply_to(message, "⚠️ فایل برنامه پیدا نشد!")
 
 @bot.message_handler(commands=['about'])
 def about_command(message):
@@ -380,9 +393,9 @@ def handler(message):
 
 print("🤖 ربات روشن شد...")
 bot.set_my_commands([
-    BotCommand("start", "شروع ربات"),
-    BotCommand("about", "درباره ربات"),
-    BotCommand("stats", "آمار من"),
-    BotCommand("history", "تاریخچه"),
+    BotCommand("start", "🚀 شروع"),
+    BotCommand("about", "ℹ️ درباره"),
+    BotCommand("stats", "📊 آمار من"),
+    BotCommand("history", "📜 تاریخچه"),
 ])
 bot.infinity_polling(skip_pending=True, timeout=30, long_polling_timeout=30)
