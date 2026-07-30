@@ -1,1 +1,2 @@
-pyTelegramBotAPI
+pyTelegramBotAPI==4.29.1
+emoji==2.14.1
