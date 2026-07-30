@@ -15,11 +15,11 @@ from telebot.types import (
 import emoji
 
 # ==============================================
-# پیکربندی
+# تنظیمات اصلی
 # ==============================================
 TOKEN = "8943897493:AAEBKncLQgRKNZ0Gidw2WDtwYmQO_2_8GL4"
 MAX_TEXT_LENGTH = 4000
-RATE_LIMIT = 5  # تعداد مجاز در دقیقه
+RATE_LIMIT = 5  # درخواست در دقیقه
 RATE_LIMIT_TIME = 60
 
 # ==============================================
@@ -38,7 +38,7 @@ logger = logging.getLogger(__name__)
 bot = telebot.TeleBot(TOKEN)
 
 # ==============================================
-# Cache برای bot.get_me()
+# Cache برای جلوگیری از درخواست اضافی
 # ==============================================
 BOT_USERNAME = None
 try:
@@ -47,7 +47,7 @@ except Exception as e:
     logger.error(f"Failed to get bot username: {e}")
 
 # ==============================================
-# دیکشنری‌ها
+# دیکشنری‌های اصلی
 # ==============================================
 letter_to_num = {
     'ا': '1', 'آ': '1', 'ب': '2', 'پ': '3', 'ت': '4', 'ث': '5',
@@ -75,26 +75,26 @@ greek_to_num = {
     'ε': '5', 'ϛ': '6', 'ζ': '7', 'η': '8', 'θ': '9'
 }
 
+# ==============================================
+# تبدیل‌ها و پاکسازی
+# ==============================================
 persian_to_english = str.maketrans("۰۱۲۳۴۵۶۷۸۹", "0123456789")
 arabic_to_persian = str.maketrans({
-    'ي': 'ی', 'ك': 'ک', 'ة': 'ه', 'ٔ': '', 'ٕ': '', 'ٗ': '', '٘': '', 'ٙ': '', 'ٚ': '', 'ٛ': ''
+    'ي': 'ی', 'ك': 'ک', 'ة': 'ه'
 })
 
 ZERO_WIDTH = ['\u200c', '\u200d', '\u200b', '\u2060', '\ufeff']
 RTL_LTR_MARKS = ['\u200e', '\u200f', '\u202a', '\u202b', '\u202c', '\u202d', '\u202e']
 
-# ==============================================
-# پیش‌پردازش (Preprocess)
-# ==============================================
-def preprocess(text):
-    """یکسان‌سازی متن ورودی"""
+def clean_text(text):
+    """پاکسازی کامل متن ورودی"""
     if not text:
         return text
     
     # تبدیل عربی به فارسی
     text = text.translate(arabic_to_persian)
     
-    # حذف کشیده
+    # حذف کشیدگی
     text = text.replace('ـ', '')
     
     # حذف کاراکترهای نامرئی
@@ -126,33 +126,26 @@ def validate_code(text):
     """اعتبارسنجی کامل کد مخفی"""
     errors = []
     
-    # ۱. تعداد | زوج باشد
     if text.count('|') % 2 != 0:
         errors.append("❌ تعداد | باید زوج باشد")
     
-    # ۲. | | خالی نباشد
     if '||' in text:
         errors.append("❌ | خالی مجاز نیست")
     
-    # ۳. دو تا _ کنار هم نباشد
     if '__' in text:
         errors.append("❌ __ مجاز نیست")
     
-    # ۴. _ اول یا آخر نباشد
     if text.startswith('_') or text.endswith('_'):
         errors.append("❌ _ در ابتدا یا انتها مجاز نیست")
     
-    # ۵. • دو بار پشت سر هم نباشد
     if '••' in text:
         errors.append("❌ •• مجاز نیست")
     
-    # ۶. بررسی اعداد داخل براکت‌ها (یونانی)
     in_bracket = False
     bracket_content = ""
     for ch in text:
         if ch == '|':
             if in_bracket:
-                # بررسی محتوای براکت
                 tokens = bracket_content.split('_')
                 for token in tokens:
                     if token and token not in greek_to_num:
@@ -165,7 +158,6 @@ def validate_code(text):
         elif in_bracket:
             bracket_content += ch
     
-    # ۷. بررسی اعداد خارج از براکت (۱-۳۲)
     outside_bracket = re.sub(r'\|[^|]*\|', '', text)
     nums = re.findall(r'\d+', outside_bracket)
     for num in nums:
@@ -175,26 +167,26 @@ def validate_code(text):
     return errors
 
 # ==============================================
-# Tokenizer
+# Tokenizer (با پشتیبانی کامل از ایموجی)
 # ==============================================
 def tokenize(text):
-    """تجزیه متن به توکن‌ها"""
+    """تجزیه متن به توکن‌ها با پشتیبانی کامل از ایموجی"""
     tokens = []
     i = 0
     
-    # تشخیص ایموجی‌ها با کتابخانه emoji
+    # تشخیص ایموجی با کتابخانه emoji
     emoji_list = emoji.emoji_list(text)
     emoji_positions = {e['match_start']: e['match_end'] for e in emoji_list}
     
     while i < len(text):
-        # ۱. ایموجی
+        # ایموجی
         if i in emoji_positions:
             end = emoji_positions[i]
             tokens.append(('EMOJI', text[i:end]))
             i = end
             continue
         
-        # ۲. عدد
+        # عدد
         if text[i].isdigit():
             num = ''
             while i < len(text) and text[i].isdigit():
@@ -203,26 +195,26 @@ def tokenize(text):
             tokens.append(('NUMBER', num))
             continue
         
-        # ۳. حرف فارسی
+        # حرف فارسی
         if text[i] in letter_to_num or text[i] in 'آ':
             tokens.append(('PERSIAN', text[i]))
             i += 1
             continue
         
-        # ۴. جداکننده‌ها
+        # جداکننده‌ها
         if text[i] in ['•', '|', '_']:
             tokens.append(('SEPARATOR', text[i]))
             i += 1
             continue
         
-        # ۵. بقیه کاراکترها
+        # بقیه
         tokens.append(('OTHER', text[i]))
         i += 1
     
     return tokens
 
 # ==============================================
-# دیتابیس (با Context Manager و WAL)
+# دیتابیس (با WAL و Context Manager)
 # ==============================================
 def get_db_connection():
     conn = sqlite3.connect('bot.db', timeout=10)
@@ -331,7 +323,7 @@ def get_history(user_id, limit=5):
         return []
 
 # ==============================================
-# Rate Limit
+# Rate Limit (ضد اسپم)
 # ==============================================
 rate_limit_store = {}
 
@@ -359,13 +351,12 @@ def rate_limit(func):
     return wrapper
 
 # ==============================================
-# توابع تبدیل (Encode/Decode)
+# توابع اصلی تبدیل
 # ==============================================
 def encode(text):
-    """تبدیل متن فارسی به کد مخفی"""
+    """تبدیل فارسی به کد مخفی"""
     try:
-        # پیش‌پردازش
-        text = preprocess(text)
+        text = clean_text(text)
         
         if len(text) > MAX_TEXT_LENGTH:
             return f"❌ متن خیلی طولانی است (حداکثر {MAX_TEXT_LENGTH} کاراکتر)"
@@ -438,24 +429,23 @@ def encode(text):
             result_lines.append(''.join(output_parts))
 
         result = '\n'.join(result_lines)
-        return html.escape(result)  # HTML Escape
+        return html.escape(result)
+        
     except Exception as e:
         logger.error(f"Encode error: {e}")
         return f"❌ خطا در تبدیل: {str(e)}"
 
 def decode(text):
-    """تبدیل کد مخفی به متن فارسی"""
+    """تبدیل کد مخفی به فارسی"""
     try:
-        # پیش‌پردازش
-        text = preprocess(text)
+        text = clean_text(text)
         
         if len(text) > MAX_TEXT_LENGTH:
             return f"❌ متن خیلی طولانی است (حداکثر {MAX_TEXT_LENGTH} کاراکتر)"
         
-        # اعتبارسنجی
         errors = validate_code(text)
         if errors:
-            return "\n".join(errors[:3])  # حداکثر ۳ خطا
+            return "\n".join(errors[:3])
         
         lines = text.split('\n')
         final_lines = []
@@ -527,42 +517,38 @@ def decode(text):
             final_lines.append(" ".join(result_words))
 
         result = '\n'.join(final_lines)
-        return html.escape(result)  # HTML Escape
+        return html.escape(result)
+        
     except Exception as e:
         logger.error(f"Decode error: {e}")
         return f"❌ خطا در تبدیل: {str(e)}"
 
 # ==============================================
-# تشخیص نوع ورودی (Regex کامل)
+# تشخیص خودکار نوع ورودی
 # ==============================================
 def detect_conversion_type(text):
-    """تشخیص خودکار نوع ورودی"""
-    text = preprocess(text)
+    """تشخیص خودکار نوع ورودی با Regex کامل"""
+    text = clean_text(text)
     
     # الگوی کد مخفی کامل
     code_pattern = r'^[0-9_•|α-ωοϛΑ-ΩΟϚ]+$'
     
-    # اگر کل متن با الگوی کد مطابقت داشت
     if re.match(code_pattern, text, re.UNICODE):
         return 'decode'
     
-    # اگر حداقل یک حرف یونانی داشت
     if re.search(r'[α-ωοϛ]', text) or re.search(r'[Α-ΩΟϚ]', text):
         return 'decode'
     
-    # اگر • یا | داشت
     if '•' in text or '|' in text:
         return 'decode'
     
-    # اگر _ داشت و عدد هم داشت
     if '_' in text and re.search(r'\d', text):
         return 'decode'
     
-    # در غیر این صورت encode
     return 'encode'
 
 # ==============================================
-# هندلرها
+# هندلرهای دستورات
 # ==============================================
 @bot.message_handler(commands=['start'])
 @rate_limit
@@ -597,10 +583,7 @@ def start(message):
 
     bot.reply_to(message, text, parse_mode="Markdown")
 
-    # ارسال فایل APK (با file_id)
     try:
-        # با file_id (یکبار آپلود کن و آیدی رو ذخیره کن)
-        # برای سادگی، فعلاً فایل رو باز میکنیم
         with open('Hidden_Language.apk', 'rb') as apk:
             bot.send_document(
                 message.chat.id,
@@ -610,307 +593,13 @@ def start(message):
             )
     except FileNotFoundError:
         logger.warning("APK file not found")
-        bot.reply_to(message, "⚠️ فایل برنامه پیدا نشد!")
-
-@bot.message_handler(commands=['about'])
-@rate_limit
-def about_command(message):
-           LIMIT ?
-            ''', (user_id, limit))
-            results = c.fetchall()
-            return [dict(r) for r in results]
-    except Exception as e:
-        logger.error(f"Error getting history: {e}")
-        return []
-
-# ==============================================
-# Rate Limit
-# ==============================================
-rate_limit_store = {}
-
-def rate_limit(func):
-    @wraps(func)
-    def wrapper(message):
-        user_id = message.from_user.id
-        now = time.time()
-        
-        if user_id not in rate_limit_store:
-            rate_limit_store[user_id] = []
-        
-        # پاک کردن درخواست‌های قدیمی
-        rate_limit_store[user_id] = [
-            t for t in rate_limit_store[user_id] 
-            if now - t < RATE_LIMIT_TIME
-        ]
-        
-        if len(rate_limit_store[user_id]) >= RATE_LIMIT:
-            bot.reply_to(message, f"⏳ لطفاً صبر کنید. حداکثر {RATE_LIMIT} درخواست در دقیقه.")
-            return
-        
-        rate_limit_store[user_id].append(now)
-        return func(message)
-    return wrapper
-
-# ==============================================
-# توابع تبدیل (Encode/Decode)
-# ==============================================
-def encode(text):
-    """تبدیل متن فارسی به کد مخفی"""
-    try:
-        # پیش‌پردازش
-        text = preprocess(text)
-        
-        if len(text) > MAX_TEXT_LENGTH:
-            return f"❌ متن خیلی طولانی است (حداکثر {MAX_TEXT_LENGTH} کاراکتر)"
-        
-        lines = text.split('\n')
-        result_lines = []
-
-        for line in lines:
-            if not line.strip():
-                result_lines.append('')
-                continue
-
-            tokens = tokenize(line)
-            output_parts = []
-            current_part = []
-            greek_buffer = []
-            
-            for token_type, token_value in tokens:
-                if token_type == 'PERSIAN':
-                    if greek_buffer:
-                        current_part.append('|' + '_'.join(greek_buffer) + '|')
-                        greek_buffer = []
-                    current_part.append(letter_to_num[token_value])
-                
-                elif token_type == 'NUMBER':
-                    greek_buffer.append(number_to_greek.get(token_value, token_value))
-                
-                elif token_type == 'SEPARATOR':
-                    if token_value == ' ':
-                        if greek_buffer:
-                            current_part.append('|' + '_'.join(greek_buffer) + '|')
-                            greek_buffer = []
-                        if current_part:
-                            output_parts.append('_'.join(current_part))
-                            current_part = []
-                        output_parts.append('•')
-                    else:
-                        if greek_buffer:
-                            current_part.append('|' + '_'.join(greek_buffer) + '|')
-                            greek_buffer = []
-                        if current_part:
-                            output_parts.append('_'.join(current_part))
-                            current_part = []
-                        output_parts.append(token_value)
-                
-                elif token_type == 'EMOJI':
-                    if greek_buffer:
-                        current_part.append('|' + '_'.join(greek_buffer) + '|')
-                        greek_buffer = []
-                    if current_part:
-                        output_parts.append('_'.join(current_part))
-                        current_part = []
-                    output_parts.append(token_value)
-                
-                else:  # OTHER
-                    if greek_buffer:
-                        current_part.append('|' + '_'.join(greek_buffer) + '|')
-                        greek_buffer = []
-                    if current_part:
-                        output_parts.append('_'.join(current_part))
-                        current_part = []
-                    output_parts.append(token_value)
-            
-            if greek_buffer:
-                current_part.append('|' + '_'.join(greek_buffer) + '|')
-                greek_buffer = []
-            if current_part:
-                output_parts.append('_'.join(current_part))
-
-            result_lines.append(''.join(output_parts))
-
-        result = '\n'.join(result_lines)
-        return html.escape(result)  # HTML Escape
-    except Exception as e:
-        logger.error(f"Encode error: {e}")
-        return f"❌ خطا در تبدیل: {str(e)}"
-
-def decode(text):
-    """تبدیل کد مخفی به متن فارسی"""
-    try:
-        # پیش‌پردازش
-        text = preprocess(text)
-        
-        if len(text) > MAX_TEXT_LENGTH:
-            return f"❌ متن خیلی طولانی است (حداکثر {MAX_TEXT_LENGTH} کاراکتر)"
-        
-        # اعتبارسنجی
-        errors = validate_code(text)
-        if errors:
-            return "\n".join(errors[:3])  # حداکثر ۳ خطا
-        
-        lines = text.split('\n')
-        final_lines = []
-
-        for line in lines:
-            if not line.strip():
-                final_lines.append("")
-                continue
-
-            tokens = tokenize(line)
-            result_words = []
-            current_word = ""
-            in_bracket = False
-            bracket_content = ""
-            
-            for token_type, token_value in tokens:
-                if token_type == 'SEPARATOR' and token_value == '|':
-                    if in_bracket:
-                        in_bracket = False
-                        greek_tokens = bracket_content.split('_')
-                        for gt in greek_tokens:
-                            if gt in greek_to_num:
-                                current_word += greek_to_num[gt]
-                            else:
-                                return f"❌ کاراکتر نامعتبر در |: {gt}"
-                        bracket_content = ""
-                    else:
-                        in_bracket = True
-                        bracket_content = ""
-                    continue
-                
-                if in_bracket:
-                    bracket_content += token_value
-                    continue
-                
-                if token_type == 'NUMBER':
-                    num = int(token_value)
-                    if num > 32:
-                        return f"❌ عدد {num} معتبر نیست (بزرگتر از ۳۲)"
-                    if num_to_letter.get(token_value):
-                        current_word += num_to_letter[token_value]
-                    else:
-                        current_word += token_value
-                
-                elif token_type == 'SEPARATOR':
-                    if token_value == '•':
-                        if current_word:
-                            result_words.append(current_word)
-                            current_word = ""
-                
-                elif token_type == 'EMOJI':
-                    if current_word:
-                        result_words.append(current_word)
-                        current_word = ""
-                    result_words.append(token_value)
-                
-                elif token_type == 'PERSIAN':
-                    current_word += token_value
-                
-                else:  # OTHER
-                    if current_word:
-                        result_words.append(current_word)
-                        current_word = ""
-                    result_words.append(token_value)
-            
-            if current_word:
-                result_words.append(current_word)
-            
-            final_lines.append(" ".join(result_words))
-
-        result = '\n'.join(final_lines)
-        return html.escape(result)  # HTML Escape
-    except Exception as e:
-        logger.error(f"Decode error: {e}")
-        return f"❌ خطا در تبدیل: {str(e)}"
-
-# ==============================================
-# تشخیص نوع ورودی (Regex کامل)
-# ==============================================
-def detect_conversion_type(text):
-    """تشخیص خودکار نوع ورودی"""
-    text = preprocess(text)
-    
-    # الگوی کد مخفی کامل
-    code_pattern = r'^[0-9_•|α-ωοϛΑ-ΩΟϚ]+$'
-    
-    # اگر کل متن با الگوی کد مطابقت داشت
-    if re.match(code_pattern, text, re.UNICODE):
-        return 'decode'
-    
-    # اگر حداقل یک حرف یونانی داشت
-    if re.search(r'[α-ωοϛ]', text) or re.search(r'[Α-ΩΟϚ]', text):
-        return 'decode'
-    
-    # اگر • یا | داشت
-    if '•' in text or '|' in text:
-        return 'decode'
-    
-    # اگر _ داشت و عدد هم داشت
-    if '_' in text and re.search(r'\d', text):
-        return 'decode'
-    
-    # در غیر این صورت encode
-    return 'encode'
-
-# ==============================================
-# هندلرها
-# ==============================================
-@bot.message_handler(commands=['start'])
-@rate_limit
-def start(message):
-    user = message.from_user
-    add_user(user.id, user.first_name, user.last_name, user.username)
-
-    text = """✨🔐 **Hidden Language** 🔐✨
-
-👋 به ربات زبان مخفی خوش آمدید!
-
-💠 **چطوری کار می‌کنه؟**
-فقط پیام خودتو بفرست، من خودم تشخیص می‌دم که متن فارسیه یا کد مخفی!
-
-**مثال:**
-`ا۱` ➜ `1|α|`
-`1|α|` ➜ `ا1`
-`سلام ۶` ➜ `15_27_1_28•|ϛ|`
-`15_27_1_28•|ϛ|` ➜ `سلام 6`
-`سلام ۶۷` ➜ `15_27_1_28•|ϛ_ζ|`
-`15_27_1_28•|ϛ_ζ|` ➜ `سلام 67`
-
-⚡ **ویژگی‌ها:**
-🔹 تبدیل سریع و هوشمند
-🧠 تشخیص خودکار متن و کد
-😎 پشتیبانی از اعداد یونانی (ο, α, β, γ, ...) با `|`
-😈 حفظ کامل ایموجی‌ها
-📜 ذخیره تاریخچه تبدیل‌ها
-📊 آمار شخصی
-
-📩 فقط پیام خودتو بفرست..."""
-
-    bot.reply_to(message, text, parse_mode="Markdown")
-
-    # ارسال فایل APK (با file_id)
-    try:
-        # با file_id (یکبار آپلود کن و آیدی رو ذخیره کن)
-        # برای سادگی، فعلاً فایل رو باز میکنیم
-        with open('Hidden_Language.apk', 'rb') as apk:
-            bot.send_document(
-                message.chat.id,
-                apk,
-                caption="📱 **برنامه Hidden Language**\n\nدانلود و نصب کن! 🚀",
-                parse_mode="Markdown"
-            )
-    except FileNotFoundError:
-        logger.warning("APK file not found")
-        bot.reply_to(message, "⚠️ فایل برنامه پیدا نشد!")
 
 @bot.message_handler(commands=['about'])
 @rate_limit
 def about_command(message):
     about_text = """ℹ️ **درباره ربات**
 
-🤖 نسخه: 3.3.4
+🤖 نسخه: 4.0
 📅 1404/11/25
 
 ✅ تبدیل فارسی ↔ کد مخفی
@@ -944,6 +633,9 @@ def history_command(message):
         history_text = "📜 هنوز تبدیلی انجام ندادید!"
     bot.reply_to(message, history_text, parse_mode="Markdown")
 
+# ==============================================
+# هندلر اصلی پیام‌ها
+# ==============================================
 @bot.message_handler(func=lambda m: True)
 @rate_limit
 def handler(message):
@@ -968,12 +660,11 @@ def handler(message):
             if not text:
                 return
         
-        # چک کردن حروف انگلیسی با Unicode کامل
+        # جلوگیری از حروف انگلیسی
         if re.search(r'[A-Za-z\u0041-\u005A\u0061-\u007A]', text):
             bot.reply_to(message, "❌ فقط متن فارسی وارد کنید.")
             return
         
-        # تشخیص نوع تبدیل
         conv_type = detect_conversion_type(text)
         
         if conv_type == 'encode':
@@ -991,7 +682,7 @@ def handler(message):
 # ==============================================
 # اجرا
 # ==============================================
-logger.info("🤖 ربات روشن شد...")
+logger.info("🤖 ربات Hidden Language نسخه 4.0 روشن شد...")
 bot.set_my_commands([
     BotCommand("start", "🚀 شروع"),
     BotCommand("about", "ℹ️ درباره"),
