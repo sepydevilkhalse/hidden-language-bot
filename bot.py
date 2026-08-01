@@ -313,7 +313,7 @@ def get_history(user_id, limit=5):
             ''', (user_id, limit))
             results = c.fetchall()
             return [dict(r) for r in results]
-    sqlite3t Exception as e:
+    except Exception as e:
         logger.error(f"Error getting history: {e}")
         return []
 
