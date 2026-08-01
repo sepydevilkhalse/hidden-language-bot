@@ -4,13 +4,15 @@ import sqlite3
 import html
 import logging
 import time
+import os
 from datetime import datetime, timedelta
 from functools import wraps
 from telebot.types import (
     ReplyKeyboardMarkup,
     KeyboardButton,
     WebAppInfo,
-    BotCommand
+    BotCommand,
+    ReplyParameters
 )
 import emoji
 
@@ -18,9 +20,10 @@ import emoji
 # تنظیمات اصلی
 # ==============================================
 TOKEN = "8943897493:AAEBKncLQgRKNZ0Gidw2WDtwYmQO_2_8GL4"
-MAX_TEXT_LENGTH = 4000
 RATE_LIMIT = 5
 RATE_LIMIT_TIME = 60
+VERSION = "3.3.4"
+MAX_TELEGRAM_MESSAGE = 4096
 
 # ==============================================
 # لاگ‌گیری
@@ -65,15 +68,18 @@ for key, val in letter_to_num.items():
     elif val not in num_to_letter:
         num_to_letter[val] = key
 
+# عدد ۶ به π تبدیل شده
 number_to_greek = {
     '0': 'ο', '1': 'α', '2': 'β', '3': 'γ', '4': 'δ',
-    '5': 'ε', '6': 'ϛ', '7': 'ζ', '8': 'η', '9': 'θ'
+    '5': 'ε', '6': 'π', '7': 'ζ', '8': 'η', '9': 'θ'
 }
 
 greek_to_num = {
     'ο': '0', 'α': '1', 'β': '2', 'γ': '3', 'δ': '4',
-    'ε': '5', 'ϛ': '6', 'ζ': '7', 'η': '8', 'θ': '9'
+    'ε': '5', 'π': '6', 'ζ': '7', 'η': '8', 'θ': '9'
 }
+
+VALID_GREEK = set(greek_to_num.keys())
 
 # ==============================================
 # تبدیل‌ها و پاکسازی
@@ -100,6 +106,27 @@ def clean_text(text):
     text = text.strip()
     text = text.translate(persian_to_english)
     return text
+
+def remove_first_mention(text, mention):
+    if not text or not mention:
+        return text
+    pattern = r'^@?' + re.escape(mention) + r'\s*'
+    return re.sub(pattern, '', text)
+
+def split_message(text, size=MAX_TELEGRAM_MESSAGE):
+    parts = []
+    while len(text) > size:
+        cut = text.rfind("\n", 0, size)
+        if cut == -1:
+            cut = text.rfind(" ", 0, size)
+        if cut == -1:
+            cut = size
+        parts.append(text[:cut])
+        text = text[cut:].lstrip()
+    if text:
+        parts.append(text)
+    return parts
+
 # ==============================================
 # اعتبارسنجی کد مخفی
 # ==============================================
@@ -128,7 +155,7 @@ def validate_code(text):
             if in_bracket:
                 tokens = bracket_content.split('_')
                 for token in tokens:
-                    if token and token not in greek_to_num:
+                    if token and token not in VALID_GREEK:
                         errors.append(f"❌ کاراکتر نامعتبر در |: {token}")
                 bracket_content = ""
                 in_bracket = False
@@ -193,8 +220,29 @@ def init_db():
     try:
         with get_db_connection() as conn:
             c = conn.cursor()
-            c.execute('CREATE TABLE IF NOT EXISTS users (user_id INTEGER PRIMARY KEY, first_name TEXT, last_name TEXT, username TEXT, first_join TEXT, last_active TEXT, total_conversions INTEGER DEFAULT 0)')
-            c.execute('CREATE TABLE IF NOT EXISTS conversions (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, input_text TEXT, output_text TEXT, conversion_type TEXT, timestamp TEXT)')
+            c.execute('''
+                CREATE TABLE IF NOT EXISTS users (
+                    user_id INTEGER PRIMARY KEY,
+                    first_name TEXT,
+                    last_name TEXT,
+                    username TEXT,
+                    first_join TEXT,
+                    last_active TEXT,
+                    total_conversions INTEGER DEFAULT 0
+                )
+            ''')
+            c.execute('''
+                CREATE TABLE IF NOT EXISTS conversions (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id INTEGER,
+                    input_text TEXT,
+                    output_text TEXT,
+                    conversion_type TEXT,
+                    timestamp TEXT
+                )
+            ''')
+            c.execute('CREATE INDEX IF NOT EXISTS idx_user_id ON conversions(user_id)')
+            c.execute('CREATE INDEX IF NOT EXISTS idx_timestamp ON conversions(timestamp)')
             conn.commit()
             logger.info("Database initialized successfully")
     except Exception as e:
@@ -209,11 +257,17 @@ def add_user(user_id, first_name, last_name, username):
             now = datetime.now().isoformat()
             c.execute('SELECT user_id FROM users WHERE user_id = ?', (user_id,))
             if c.fetchone():
-                c.execute('UPDATE users SET last_active = ?, first_name = ?, last_name = ?, username = ? WHERE user_id = ?', (now, first_name, last_name, username, user_id))
+                c.execute('''
+                    UPDATE users 
+                    SET last_active = ?, first_name = ?, last_name = ?, username = ?
+                    WHERE user_id = ?
+                ''', (now, first_name, last_name, username, user_id))
             else:
-                c.execute('INSERT INTO users (user_id, first_name, last_name, username, first_join, last_active) VALUES (?, ?, ?, ?, ?, ?)', (user_id, first_name, last_name, username, now, now))
+                c.execute('''
+                    INSERT INTO users (user_id, first_name, last_name, username, first_join, last_active)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                ''', (user_id, first_name, last_name, username, now, now))
             conn.commit()
-            logger.info(f"User {user_id} added/updated")
     except Exception as e:
         logger.error(f"Error adding user: {e}")
 
@@ -222,8 +276,15 @@ def update_conversion(user_id, input_text, output_text, conv_type):
         with get_db_connection() as conn:
             c = conn.cursor()
             now = datetime.now().isoformat()
-            c.execute('INSERT INTO conversions (user_id, input_text, output_text, conversion_type, timestamp) VALUES (?, ?, ?, ?, ?)', (user_id, input_text[:200], output_text[:200], conv_type, now))
-            c.execute('UPDATE users SET total_conversions = total_conversions + 1 WHERE user_id = ?', (user_id,))
+            c.execute('''
+                INSERT INTO conversions (user_id, input_text, output_text, conversion_type, timestamp)
+                VALUES (?, ?, ?, ?, ?)
+            ''', (user_id, input_text[:200], output_text[:200], conv_type, now))
+            c.execute('''
+                UPDATE users 
+                SET total_conversions = total_conversions + 1
+                WHERE user_id = ?
+            ''', (user_id,))
             conn.commit()
     except Exception as e:
         logger.error(f"Error updating conversion: {e}")
@@ -243,10 +304,16 @@ def get_history(user_id, limit=5):
     try:
         with get_db_connection() as conn:
             c = conn.cursor()
-            c.execute('SELECT input_text, output_text, timestamp FROM conversions WHERE user_id = ? ORDER BY timestamp DESC LIMIT ?', (user_id, limit))
+            c.execute('''
+                SELECT input_text, output_text, timestamp 
+                FROM conversions 
+                WHERE user_id = ? 
+                ORDER BY timestamp DESC 
+                LIMIT ?
+            ''', (user_id, limit))
             results = c.fetchall()
             return [dict(r) for r in results]
-    except Exception as e:
+    sqlite3t Exception as e:
         logger.error(f"Error getting history: {e}")
         return []
 
@@ -269,14 +336,22 @@ def rate_limit(func):
         rate_limit_store[user_id].append(now)
         return func(message)
     return wrapper
+
 # ==============================================
 # توابع اصلی تبدیل
 # ==============================================
+def convert_number_to_greek(num_str):
+    result = []
+    for ch in num_str:
+        if ch.isdigit():
+            result.append(number_to_greek.get(ch, ch))
+        else:
+            result.append(ch)
+    return '_'.join(result)
+
 def encode(text):
     try:
         text = clean_text(text)
-        if len(text) > MAX_TEXT_LENGTH:
-            return f"❌ متن خیلی طولانی است (حداکثر {MAX_TEXT_LENGTH} کاراکتر)"
         lines = text.split('\n')
         result_lines = []
         for line in lines:
@@ -294,7 +369,7 @@ def encode(text):
                         greek_buffer = []
                     current_part.append(letter_to_num[token_value])
                 elif token_type == 'NUMBER':
-                    greek_buffer.append(number_to_greek.get(token_value, token_value))
+                    greek_buffer.append(convert_number_to_greek(token_value))
                 elif token_type == 'SEPARATOR':
                     if token_value == ' ':
                         if greek_buffer:
@@ -343,8 +418,6 @@ def encode(text):
 def decode(text):
     try:
         text = clean_text(text)
-        if len(text) > MAX_TEXT_LENGTH:
-            return f"❌ متن خیلی طولانی است (حداکثر {MAX_TEXT_LENGTH} کاراکتر)"
         errors = validate_code(text)
         if errors:
             return "\n".join(errors[:3])
@@ -413,40 +486,92 @@ def decode(text):
 
 def detect_conversion_type(text):
     text = clean_text(text)
-    if re.match(r'^[0-9_•|α-ωοϛΑ-ΩΟϚ]+$', text, re.UNICODE):
+    
+    if re.search(r'[ا-ی]', text):
+        return 'encode'
+    
+    if re.match(r'^[0-9_•|α-ωοπϛΑ-ΩΟϚ]+$', text, re.UNICODE):
         return 'decode'
-    if re.search(r'[α-ωοϛ]', text) or re.search(r'[Α-ΩΟϚ]', text):
+    
+    if re.search(r'[α-ωοπϛ]', text) or re.search(r'[Α-ΩΟϚ]', text):
         return 'decode'
+    
     if '•' in text or '|' in text:
         return 'decode'
+    
     if '_' in text and re.search(r'\d', text):
         return 'decode'
+    
     return 'encode'
 
+def send_long_message(chat_id, text, reply_to_message_id=None, parse_mode="HTML"):
+    if len(text) <= MAX_TELEGRAM_MESSAGE:
+        if reply_to_message_id:
+            bot.send_message(
+                chat_id,
+                f"<code>{text}</code>",
+                parse_mode=parse_mode,
+                reply_parameters=ReplyParameters(message_id=reply_to_message_id)
+            )
+        else:
+            bot.send_message(chat_id, f"<code>{text}</code>", parse_mode=parse_mode)
+        return
+    
+    parts = split_message(text)
+    total = len(parts)
+    
+    for i, part in enumerate(parts, 1):
+        caption = f"📄 بخش {i} از {total}"
+        if i == 1 and reply_to_message_id:
+            bot.send_message(
+                chat_id,
+                f"<code>{part}</code>",
+                parse_mode=parse_mode,
+                reply_parameters=ReplyParameters(
+                    message_id=reply_to_message_id,
+                    quote=caption
+                )
+            )
+        else:
+            bot.send_message(
+                chat_id,
+                f"<code>{part}</code>",
+                parse_mode=parse_mode
+            )
+
+# ==============================================
+# هندلرها
+# ==============================================
 @bot.message_handler(commands=['start'])
 @rate_limit
 def start(message):
     user = message.from_user
     add_user(user.id, user.first_name, user.last_name, user.username)
-    text = """✨🔐 **Hidden Language** 🔐✨
+    text = f"""✨🔐 **Hidden Language** 🔐✨
+
 👋 به ربات زبان مخفی خوش آمدید!
+
 💠 **چطوری کار می‌کنه؟**
 فقط پیام خودتو بفرست، من خودم تشخیص می‌دم که متن فارسیه یا کد مخفی!
+
 **مثال:**
 `ا۱` ➜ `1|α|`
 `1|α|` ➜ `ا1`
-`سلام ۶` ➜ `15_27_1_28•|ϛ|`
-`15_27_1_28•|ϛ|` ➜ `سلام 6`
-`سلام ۶۷` ➜ `15_27_1_28•|ϛ_ζ|`
-`15_27_1_28•|ϛ_ζ|` ➜ `سلام 67`
+`سلام ۶` ➜ `15_27_1_28•|π|`
+`15_27_1_28•|π|` ➜ `سلام 6`
+`سلام ۶۷` ➜ `15_27_1_28•|π_ζ|`
+`15_27_1_28•|π_ζ|` ➜ `سلام 67`
+
 ⚡ **ویژگی‌ها:**
 🔹 تبدیل سریع و هوشمند
 🧠 تشخیص خودکار متن و کد
-😎 پشتیبانی از اعداد یونانی با `|`
+😎 پشتیبانی از اعداد یونانی (π برای عدد ۶)
 😈 حفظ کامل ایموجی‌ها
 📜 ذخیره تاریخچه تبدیل‌ها
 📊 آمار شخصی
+
 📩 فقط پیام خودتو بفرست..."""
+
     bot.reply_to(message, text, parse_mode="Markdown")
     try:
         with open('Hidden_Language.apk', 'rb') as apk:
@@ -457,12 +582,14 @@ def start(message):
 @bot.message_handler(commands=['about'])
 @rate_limit
 def about_command(message):
-    about_text = """ℹ️ **درباره ربات**
-🤖 نسخه: 4.1
+    about_text = f"""ℹ️ **درباره ربات**
+
+🤖 نسخه: {VERSION}
 📅 1404/11/25
+
 ✅ تبدیل فارسی ↔ کد مخفی
 ✅ تشخیص خودکار
-✅ پشتیبانی از اعداد یونانی با `|`
+✅ پشتیبانی از اعداد یونانی (π برای عدد ۶)
 ✅ تاریخچه و آمار"""
     bot.reply_to(message, about_text, parse_mode="Markdown")
 
@@ -502,36 +629,46 @@ def handler(message):
             return
         if text in ["ℹ️ درباره", "📊 آمار من", "📜 تاریخچه"]:
             return
+        
         if message.chat.type in ["group", "supergroup"]:
             if not BOT_USERNAME:
                 return
             mention = f"@{BOT_USERNAME}"
-            if mention not in text:
-                return
-            text = text.replace(mention, "").strip()
+            if mention in text:
+                text = remove_first_mention(text, BOT_USERNAME)
             if not text:
                 return
-        if re.search(r'[A-Za-z\u0041-\u005A\u0061-\u007A]', text):
-            bot.reply_to(message, "❌ فقط متن فارسی وارد کنید.")
-            return
+        
         conv_type = detect_conversion_type(text)
+        
         if conv_type == 'encode':
             result = encode(text)
         else:
             result = decode(text)
+        
         update_conversion(user.id, text, result, conv_type)
-        bot.reply_to(message, f"<code>{result}</code>", parse_mode="HTML")
+        
+        send_long_message(
+            message.chat.id,
+            result,
+            reply_to_message_id=message.message_id
+        )
+        
     except Exception as e:
         logger.error(f"Handler error: {e}")
         bot.reply_to(message, f"❌ خطا: {str(e)}")
 
-logger.info("🤖 ربات Hidden Language نسخه 4.1 روشن شد...")
+# ==============================================
+# اجرا
+# ==============================================
+logger.info(f"🤖 ربات Hidden Language نسخه {VERSION} روشن شد...")
 bot.set_my_commands([
     BotCommand("start", "🚀 شروع"),
     BotCommand("about", "ℹ️ درباره"),
     BotCommand("stats", "📊 آمار من"),
     BotCommand("history", "📜 تاریخچه"),
 ])
+
 try:
     bot.infinity_polling(skip_pending=True, timeout=30, long_polling_timeout=30)
 except Exception as e:
