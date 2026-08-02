@@ -573,11 +573,19 @@ def start(message):
 📩 فقط پیام خودتو بفرست..."""
 
     bot.reply_to(message, text, parse_mode="Markdown")
+
+    # ارسال فایل APK با متن ساده (بدون ایموجی مشکل‌دار)
     try:
-        with open('Hidden_Language👑.apk', 'rb') as apk:
-            bot.send_document(message.chat.id, apk, caption="📱 **برنامه Hidden Language**\n\nآخرین نسخه از برنامه Hidden_Language 🫶🫂", parse_mode="Markdown")
+        with open('Hidden_Language.apk', 'rb') as apk:
+            bot.send_document(
+                message.chat.id,
+                apk,
+                caption="📱 برنامه Hidden Language\n\nآخرین نسخه از برنامه Hidden Language",
+                parse_mode="HTML"
+            )
     except FileNotFoundError:
         logger.warning("APK file not found")
+        bot.reply_to(message, "⚠️ فایل برنامه پیدا نشد!")
 
 @bot.message_handler(commands=['about'])
 @rate_limit
