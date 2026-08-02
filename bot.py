@@ -574,8 +574,8 @@ def start(message):
 
     bot.reply_to(message, text, parse_mode="Markdown")
     try:
-        with open('Hidden_Language.apk', 'rb') as apk:
-            bot.send_document(message.chat.id, apk, caption="📱 **برنامه Hidden Language**\n\nدانلود و نصب کن! 🚀", parse_mode="Markdown")
+        with open('Hidden_Language👑.apk', 'rb') as apk:
+            bot.send_document(message.chat.id, apk, caption="📱 **برنامه Hidden Language**\n\nآخرین نسخه از برنامه Hidden_Language 🫶🫂", parse_mode="Markdown")
     except FileNotFoundError:
         logger.warning("APK file not found")
 
