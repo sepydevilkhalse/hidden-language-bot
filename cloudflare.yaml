@@ -1,0 +1,9 @@
+version: '1'
+services:
+  - name: hidden-language-bot
+    image: python:3.11-slim
+    command: python bot.py
+    ports:
+      - 8080
+    env:
+      - TOKEN=8943897493:AAEBKncLQgRKNZ0Gidw2WDtwYmQO_2_8GL4
