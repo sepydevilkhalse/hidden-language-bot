@@ -1,0 +1,9 @@
+{
+  "$schema": "https://raw.githubusercontent.com/cloudflare/workers-sdk/main/packages/wrangler/config-schema.json",
+  "name": "hidden-language-bot",
+  "main": "bot.py",
+  "compatibility_date": "2025-01-01",
+  "env": {
+    "TOKEN": "8943897493:AAEBKncLQgRKNZ0Gidw2WDtwYmQO_2_8GL4"
+  }
+}
