@@ -15,6 +15,8 @@ from telebot.types import (
     ReplyParameters
 )
 import emoji
+from flask import Flask, request, jsonify
+import requests
 
 # ==============================================
 # تنظیمات اصلی
@@ -25,9 +27,6 @@ RATE_LIMIT_TIME = 60
 VERSION = "3.3.4"
 MAX_TELEGRAM_MESSAGE = 4096
 
-# ==============================================
-# لاگ‌گیری
-# ==============================================
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -41,16 +40,12 @@ logger = logging.getLogger(__name__)
 bot = telebot.TeleBot(TOKEN)
 
 # ==============================================
-# Cache
+# Flask App برای Webhook
 # ==============================================
-BOT_USERNAME = None
-try:
-    BOT_USERNAME = bot.get_me().username
-except Exception as e:
-    logger.error(f"Failed to get bot username: {e}")
+app = Flask(__name__)
 
 # ==============================================
-# دیکشنری‌های اصلی
+# دیکشنری‌ها (کد قبلی)
 # ==============================================
 letter_to_num = {
     'ا': '1', 'آ': '1', 'ب': '2', 'پ': '3', 'ت': '4', 'ث': '5',
@@ -68,7 +63,6 @@ for key, val in letter_to_num.items():
     elif val not in num_to_letter:
         num_to_letter[val] = key
 
-# عدد ۶ به π تبدیل شده
 number_to_greek = {
     '0': 'ο', '1': 'α', '2': 'β', '3': 'γ', '4': 'δ',
     '5': 'ε', '6': 'π', '7': 'ζ', '8': 'η', '9': 'θ'
@@ -81,9 +75,6 @@ greek_to_num = {
 
 VALID_GREEK = set(greek_to_num.keys())
 
-# ==============================================
-# تبدیل‌ها و پاکسازی
-# ==============================================
 persian_to_english = str.maketrans("۰۱۲۳۴۵۶۷۸۹", "0123456789")
 arabic_to_persian = str.maketrans({
     'ي': 'ی', 'ك': 'ک', 'ة': 'ه'
@@ -127,9 +118,6 @@ def split_message(text, size=MAX_TELEGRAM_MESSAGE):
         parts.append(text)
     return parts
 
-# ==============================================
-# اعتبارسنجی کد مخفی
-# ==============================================
 def validate_code(text):
     errors = []
     
@@ -173,9 +161,6 @@ def validate_code(text):
     
     return errors
 
-# ==============================================
-# Tokenizer
-# ==============================================
 def tokenize(text):
     tokens = []
     i = 0
@@ -207,139 +192,6 @@ def tokenize(text):
         i += 1
     return tokens
 
-# ==============================================
-# دیتابیس
-# ==============================================
-def get_db_connection():
-    conn = sqlite3.connect('bot.db', timeout=10)
-    conn.execute('PRAGMA journal_mode=WAL;')
-    conn.row_factory = sqlite3.Row
-    return conn
-
-def init_db():
-    try:
-        with get_db_connection() as conn:
-            c = conn.cursor()
-            c.execute('''
-                CREATE TABLE IF NOT EXISTS users (
-                    user_id INTEGER PRIMARY KEY,
-                    first_name TEXT,
-                    last_name TEXT,
-                    username TEXT,
-                    first_join TEXT,
-                    last_active TEXT,
-                    total_conversions INTEGER DEFAULT 0
-                )
-            ''')
-            c.execute('''
-                CREATE TABLE IF NOT EXISTS conversions (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    user_id INTEGER,
-                    input_text TEXT,
-                    output_text TEXT,
-                    conversion_type TEXT,
-                    timestamp TEXT
-                )
-            ''')
-            c.execute('CREATE INDEX IF NOT EXISTS idx_user_id ON conversions(user_id)')
-            c.execute('CREATE INDEX IF NOT EXISTS idx_timestamp ON conversions(timestamp)')
-            conn.commit()
-            logger.info("Database initialized successfully")
-    except Exception as e:
-        logger.error(f"Database init error: {e}")
-
-init_db()
-
-def add_user(user_id, first_name, last_name, username):
-    try:
-        with get_db_connection() as conn:
-            c = conn.cursor()
-            now = datetime.now().isoformat()
-            c.execute('SELECT user_id FROM users WHERE user_id = ?', (user_id,))
-            if c.fetchone():
-                c.execute('''
-                    UPDATE users 
-                    SET last_active = ?, first_name = ?, last_name = ?, username = ?
-                    WHERE user_id = ?
-                ''', (now, first_name, last_name, username, user_id))
-            else:
-                c.execute('''
-                    INSERT INTO users (user_id, first_name, last_name, username, first_join, last_active)
-                    VALUES (?, ?, ?, ?, ?, ?)
-                ''', (user_id, first_name, last_name, username, now, now))
-            conn.commit()
-    except Exception as e:
-        logger.error(f"Error adding user: {e}")
-
-def update_conversion(user_id, input_text, output_text, conv_type):
-    try:
-        with get_db_connection() as conn:
-            c = conn.cursor()
-            now = datetime.now().isoformat()
-            c.execute('''
-                INSERT INTO conversions (user_id, input_text, output_text, conversion_type, timestamp)
-                VALUES (?, ?, ?, ?, ?)
-            ''', (user_id, input_text[:200], output_text[:200], conv_type, now))
-            c.execute('''
-                UPDATE users 
-                SET total_conversions = total_conversions + 1
-                WHERE user_id = ?
-            ''', (user_id,))
-            conn.commit()
-    except Exception as e:
-        logger.error(f"Error updating conversion: {e}")
-
-def get_user_stats(user_id):
-    try:
-        with get_db_connection() as conn:
-            c = conn.cursor()
-            c.execute('SELECT total_conversions, first_join FROM users WHERE user_id = ?', (user_id,))
-            result = c.fetchone()
-            return dict(result) if result else None
-    except Exception as e:
-        logger.error(f"Error getting stats: {e}")
-        return None
-
-def get_history(user_id, limit=5):
-    try:
-        with get_db_connection() as conn:
-            c = conn.cursor()
-            c.execute('''
-                SELECT input_text, output_text, timestamp 
-                FROM conversions 
-                WHERE user_id = ? 
-                ORDER BY timestamp DESC 
-                LIMIT ?
-            ''', (user_id, limit))
-            results = c.fetchall()
-            return [dict(r) for r in results]
-    except Exception as e:
-        logger.error(f"Error getting history: {e}")
-        return []
-
-# ==============================================
-# Rate Limit
-# ==============================================
-rate_limit_store = {}
-
-def rate_limit(func):
-    @wraps(func)
-    def wrapper(message):
-        user_id = message.from_user.id
-        now = time.time()
-        if user_id not in rate_limit_store:
-            rate_limit_store[user_id] = []
-        rate_limit_store[user_id] = [t for t in rate_limit_store[user_id] if now - t < RATE_LIMIT_TIME]
-        if len(rate_limit_store[user_id]) >= RATE_LIMIT:
-            bot.reply_to(message, f"⏳ لطفاً صبر کنید. حداکثر {RATE_LIMIT} درخواست در دقیقه.")
-            return
-        rate_limit_store[user_id].append(now)
-        return func(message)
-    return wrapper
-
-# ==============================================
-# توابع اصلی تبدیل
-# ==============================================
 def convert_number_to_greek(num_str):
     result = []
     for ch in num_str:
@@ -540,112 +392,26 @@ def send_long_message(chat_id, text, reply_to_message_id=None, parse_mode="HTML"
             )
 
 # ==============================================
-# هندلرها
+# هندلرهای ربات (برای Webhook)
 # ==============================================
-@bot.message_handler(commands=['start'])
-@rate_limit
-def start(message):
-    user = message.from_user
-    add_user(user.id, user.first_name, user.last_name, user.username)
-    text = f"""✨🔐 **Hidden Language** 🔐✨
 
-👋 به ربات زبان مخفی خوش آمدید!
-
-💠 **چطوری کار می‌کنه؟**
-فقط پیام خودتو بفرست، من خودم تشخیص می‌دم که متن فارسیه یا کد مخفی!
-
-**مثال:**
-`ا۱` ➜ `1|α|`
-`1|α|` ➜ `ا1`
-`سلام ۶` ➜ `15_27_1_28•|π|`
-`15_27_1_28•|π|` ➜ `سلام 6`
-`سلام ۶۷` ➜ `15_27_1_28•|π_ζ|`
-`15_27_1_28•|π_ζ|` ➜ `سلام 67`
-
-⚡ **ویژگی‌ها:**
-🔹 تبدیل سریع و هوشمند
-🧠 تشخیص خودکار متن و کد
-😎 پشتیبانی از اعداد یونانی (π برای عدد ۶)
-😈 حفظ کامل ایموجی‌ها
-📜 ذخیره تاریخچه تبدیل‌ها
-📊 آمار شخصی
-
-📩 فقط پیام خودتو بفرست..."""
-
-    bot.reply_to(message, text, parse_mode="Markdown")
-
-    # ارسال فایل APK با متن ساده (بدون ایموجی مشکل‌دار)
-    try:
-        with open('Hidden_Language.apk', 'rb') as apk:
-            bot.send_document(
-                message.chat.id,
-                apk,
-                caption="📱 برنامه Hidden Language\n\nآخرین نسخه از برنامه Hidden Language",
-                parse_mode="HTML"
-            )
-    except FileNotFoundError:
-        logger.warning("APK file not found")
-        bot.reply_to(message, "⚠️ فایل برنامه پیدا نشد!")
-
-@bot.message_handler(commands=['about'])
-@rate_limit
-def about_command(message):
-    about_text = f"""ℹ️ **درباره ربات**
-
-🤖 نسخه: {VERSION}
-📅 1404/11/25
-
-✅ تبدیل فارسی ↔ کد مخفی
-✅ تشخیص خودکار
-✅ پشتیبانی از اعداد یونانی (π برای عدد ۶)
-✅ تاریخچه و آمار"""
-    bot.reply_to(message, about_text, parse_mode="Markdown")
-
-@bot.message_handler(commands=['stats'])
-@rate_limit
-def stats_command(message):
-    user_id = message.from_user.id
-    stats = get_user_stats(user_id)
-    if stats:
-        stats_text = f"📊 **آمار شما**\n\n📝 تعداد تبدیل‌ها: {stats['total_conversions']}\n📆 عضویت: {stats['first_join'][:10]}"
-    else:
-        stats_text = "📊 هنوز تبدیلی انجام ندادید!"
-    bot.reply_to(message, stats_text, parse_mode="Markdown")
-
-@bot.message_handler(commands=['history'])
-@rate_limit
-def history_command(message):
-    user_id = message.from_user.id
-    history = get_history(user_id, 5)
-    if history:
-        history_text = "📜 **۵ تبدیل اخیر:**\n\n"
-        for i, record in enumerate(history, 1):
-            history_text += f"{i}. `{record['input_text'][:30]}` ➜ `{record['output_text'][:30]}`\n"
-            history_text += f"   📅 {record['timestamp'][:16]}\n\n"
-    else:
-        history_text = "📜 هنوز تبدیلی انجام ندادید!"
-    bot.reply_to(message, history_text, parse_mode="Markdown")
-
-@bot.message_handler(func=lambda m: True)
-@rate_limit
-def handler(message):
+def handle_message(message):
+    """پردازش پیام‌های دریافتی"""
     try:
         user = message.from_user
-        add_user(user.id, user.first_name, user.last_name, user.username)
+        # add_user(user.id, user.first_name, user.last_name, user.username)
+        
         text = message.text or ""
         if not text or text.startswith("/"):
             return
+        
         if text in ["ℹ️ درباره", "📊 آمار من", "📜 تاریخچه"]:
             return
         
+        # پردازش گروه‌ها
         if message.chat.type in ["group", "supergroup"]:
-            if not BOT_USERNAME:
-                return
-            mention = f"@{BOT_USERNAME}"
-            if mention in text:
-                text = remove_first_mention(text, BOT_USERNAME)
-            if not text:
-                return
+            # BOT_USERNAME رو باید تنظیم کنی
+            pass
         
         conv_type = detect_conversion_type(text)
         
@@ -654,30 +420,72 @@ def handler(message):
         else:
             result = decode(text)
         
-        update_conversion(user.id, text, result, conv_type)
+        # update_conversion(user.id, text, result, conv_type)
         
-        send_long_message(
-            message.chat.id,
-            result,
-            reply_to_message_id=message.message_id
-        )
+        # ارسال پاسخ
+        bot.send_message(message.chat.id, f"<code>{result}</code>", parse_mode="HTML")
         
     except Exception as e:
         logger.error(f"Handler error: {e}")
-        bot.reply_to(message, f"❌ خطا: {str(e)}")
+        bot.send_message(message.chat.id, f"❌ خطا: {str(e)}")
+
+@bot.message_handler(func=lambda m: True)
+def webhook_handler(message):
+    handle_message(message)
+
+# ==============================================
+# Webhook Endpoint
+# ==============================================
+@app.route('/', methods=['POST'])
+def webhook():
+    try:
+        # دریافت داده از تلگرام
+        data = request.get_json()
+        
+        if not data:
+            return jsonify({'ok': False, 'error': 'No data'}), 400
+        
+        # پردازش پیام
+        try:
+            # استفاده از telebot برای پردازش
+            bot.process_new_updates([telebot.types.Update.de_json(data)])
+        except Exception as e:
+            logger.error(f"Error processing update: {e}")
+            return jsonify({'ok': False, 'error': str(e)}), 500
+        
+        return jsonify({'ok': True})
+    
+    except Exception as e:
+        logger.error(f"Webhook error: {e}")
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+@app.route('/', methods=['GET'])
+def health():
+    return 'Bot is running! 🚀', 200
+
+# ==============================================
+# تنظیم Webhook روی تلگرام
+# ==============================================
+def set_webhook():
+    """تنظیم Webhook روی تلگرام"""
+    try:
+        # لینک سرویس (برای Cloudflare باید تنظیم بشه)
+        webhook_url = os.environ.get('WEBHOOK_URL', 'https://hidden-language-bot.workers.dev/')
+        bot.remove_webhook()
+        result = bot.set_webhook(url=webhook_url)
+        logger.info(f"Webhook set: {result}")
+        return result
+    except Exception as e:
+        logger.error(f"Error setting webhook: {e}")
+        return False
 
 # ==============================================
 # اجرا
 # ==============================================
-logger.info(f"🤖 ربات Hidden Language نسخه {VERSION} روشن شد...")
-bot.set_my_commands([
-    BotCommand("start", "🚀 شروع"),
-    BotCommand("about", "ℹ️ درباره"),
-    BotCommand("stats", "📊 آمار من"),
-    BotCommand("history", "📜 تاریخچه"),
-])
-
-try:
-    bot.infinity_polling(skip_pending=True, timeout=30, long_polling_timeout=30)
-except Exception as e:
-    logger.error(f"Bot polling error: {e}")
+if __name__ == '__main__':
+    # تنظیم Webhook (فقط یکبار)
+    set_webhook()
+    
+    # اجرای Flask
+    port = int(os.environ.get('PORT', 8080))
+    app.run(host='0.0.0.0', port=port)
