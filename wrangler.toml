@@ -1,0 +1,6 @@
+name = "hidden-language-bot"
+main = "bot.py"
+compatibility_date = "2025-01-01"
+
+[vars]
+TOKEN = "8943897493:AAEBKncLQgRKNZ0Gidw2WDtwYmQO_2_8GL4"
