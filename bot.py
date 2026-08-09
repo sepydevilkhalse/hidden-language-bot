@@ -19,7 +19,7 @@ import emoji
 # ==============================================
 # تنظیمات اصلی
 # ==============================================
-TOKEN = "8943897493:AAFAavmJKPzi7-2k7CPtemcTijOK6VoGyR8"
+TOKEN = "8943897493:AAHgAcSsRVHeegQrYwKkVxUibAj_zJyri1c"
 RATE_LIMIT = 5
 RATE_LIMIT_TIME = 60
 VERSION = "3.3.4"
